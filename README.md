@@ -1,4 +1,4 @@
-# Lunar Transform Assistant
+# LUNARMAXSCRIPT
 
 Lunar Transform Assistant is a MAXScript-only production utility for Autodesk 3ds Max 2026. It captures a Source and Targets explicitly, copies or instances supported transform channels, copies or instances Base Objects, manages transform locks, and clears node-level hidden state.
 
@@ -348,3 +348,8 @@ The files were loaded in Autodesk 3ds Max 2026.3.3 Batch and the following check
 ### Manual interactive verification still required
 
 Use the checklist above in the normal 3ds Max UI to verify button interaction, status-label presentation, Listener wording, one-step Undo behavior, non-zero-frame animation behavior, locked/constraint controller rejection, Layer-hidden warnings, unsupported rigs, and a wider range of production modifier stacks.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0.
+See [LICENSE](LICENSE) for details.
