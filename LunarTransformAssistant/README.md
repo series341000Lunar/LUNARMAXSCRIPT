@@ -60,7 +60,9 @@ For a one-off launch without registering the action, run `src/LunarTransformAssi
 
 ## Source and Target workflow
 
-Selection array order is never interpreted as click order.
+The tool provides Manual capture and two callback-tracked ordered selection modes. It never interprets the order of the 3ds Max `selection` collection as click order.
+
+In Manual mode:
 
 1. Select exactly one scene node.
 2. Press **Set Source**.
@@ -71,6 +73,43 @@ Selection array order is never interpreted as click order.
 The Source is automatically excluded if it is present when Targets are captured. Stored nodes are validated before every Source/Target operation. Deleted or invalid Targets are removed safely, and a deleted Source is cleared.
 
 **Clear Targets** clears only the stored Target list. Transform Lock and Visibility operations use the current 3ds Max selection and do not use stored Source or Targets.
+
+## Selection Modes
+
+### Manual
+
+Select a node and press Set Source.
+Select one or more nodes and press Set Targets.
+
+### First Selected = Source
+
+Reset ordered selection.
+Select nodes one at a time using Ctrl+Click.
+The first selected node becomes Source.
+All later nodes become Targets.
+
+### Last Selected = Source
+
+Reset ordered selection.
+Select nodes one at a time using Ctrl+Click.
+The last selected node becomes Source.
+All earlier nodes become Targets.
+
+Manual Source and Targets are stored separately from the ordered node list. Switching modes does not clear either state. First Selected and Last Selected share the same ordered list, so changing between them immediately reinterprets the active Source and Targets without requiring reselection.
+
+All transform-channel, Full Transform, and Base Object operations use one common Source/Targets resolver immediately before execution. Transform Lock and Unhide Selected Nodes continue to use the current 3ds Max selection.
+
+## Ordered Selection Limitations
+
+- Select nodes one at a time.
+- Multiple nodes selected in one action have no reliable click order.
+- Rectangle selection and Select By Name multi-selection invalidate ordered selection.
+- Deselecting removes a node from the order.
+- Reselecting appends it to the end.
+- At least two valid nodes are required.
+- Use Start / Reset Ordered Selection before beginning a new ordered selection.
+
+The ordered-selection callback receives node animation handles from 3ds Max and resolves them to valid nodes. If one event adds multiple nodes, the tool marks the ordered list invalid and blocks Source/Target operations rather than inventing an order. Deleted nodes are removed during callback processing, UI refresh, and operation validation.
 
 ## Copy versus Instance
 
@@ -254,6 +293,20 @@ Special rigs, XRefs, group heads, non-Geometry Base Objects, and plugin-specific
 - [ ] Set multiple Targets.
 - [ ] Delete a stored Target and run an operation.
 - [ ] Accidentally include Source in Target selection.
+- [ ] Switch to First Selected mode and confirm the Manual Source and Targets remain stored.
+- [ ] Switch back to Manual mode and confirm the original Manual state is active.
+
+### Ordered Selection
+
+- [ ] Choose First Selected, reset, then select A, Ctrl+B, Ctrl+C.
+- [ ] Confirm Active Source is A and Active Targets are B and C.
+- [ ] Change only the mode to Last Selected and confirm Active Source is C and Active Targets are A and B.
+- [ ] Deselect B and confirm the order becomes A, C.
+- [ ] Reselect B and confirm the order becomes A, C, B.
+- [ ] Reset, select only A, and confirm Source/Target operations are blocked.
+- [ ] Reset, rectangle-select multiple nodes, and confirm the ordered selection becomes invalid.
+- [ ] Delete a stored ordered node and confirm it is removed without an exception.
+- [ ] Close and reopen the rollout, then confirm one selection event is recorded only once.
 
 ### Transform Copy
 
@@ -315,9 +368,12 @@ Special rigs, XRefs, group heads, non-Geometry Base Objects, and plugin-specific
 
 The implementation was reviewed for:
 
-- explicit Source/Target capture without selection-order inference
+- separate Manual capture and callback-tracked ordered Source/Target state
+- no use of `selection[]` collection order as click order
+- shared Source First/Source Last resolver with simultaneous-selection invalidation
 - rollout-local state and a single intentional global rollout reference
-- stale-node cleanup with `isValidNode`
+- stale-node cleanup with `isValidNode` for Manual and ordered state
+- NodeEventCallback registration, release, and duplicate-registration prevention
 - one undo context per scene-changing button path
 - per-Target exception isolation and diagnostic summaries
 - preservation of unchecked channel and lock states
@@ -342,6 +398,17 @@ The files were loaded in Autodesk 3ds Max 2026.3.3 Batch and the following check
 - Target Bend modifier preservation through Base Object Copy and Instance
 - Full world-transform Copy with parent preservation
 - Full transform-controller Instance with parent preservation
+- Manual Source/Targets resolver and Manual state preservation across mode changes
+- First Selected and Last Selected reinterpretation of one shared ordered list
+- deselect removal and reselect append behavior
+- simultaneous multi-selection invalidation and operation blocking
+- deleted-node cleanup from Manual and ordered state
+- callback release on rollout close and one callback registration on reopen
+- Copy Selected Channels, Copy Full Transform, and Copy Base Object in all three Selection Modes
+- selected-channel, Full Transform, and Base Object Instance regression checks after Selection Mode integration
+- MacroScript launch through the project-relative `..\src` path with the expanded rollout
+
+The Batch harness supplied actual AnimHandle arrays to the same selection/deletion callback functions registered by `NodeEventCallback`. Physical viewport Ctrl+Click, rectangle selection, and Select By Name gestures remain part of manual interactive verification because Batch mode has no reliable mouse gesture stream.
 
 3ds Max Batch also reported unrelated errors from pre-existing third-party startup scripts (`nToolFloat` and `vexus_startup.ms`). No error was attributed to `LunarTransformAssistant.ms` or `LunarTransformAssistant.mcr`, and the Lunar smoke report completed all checks above.
 

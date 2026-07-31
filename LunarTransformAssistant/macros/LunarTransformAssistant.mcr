@@ -23,7 +23,7 @@ autoUndoEnabled:false
             )
             else
             (
-                createDialog ::LunarTransformAssistantRollout 380 754 \
+                createDialog ::LunarTransformAssistantRollout 380 886 \
                     style:#(#style_titlebar, #style_sysmenu, #style_toolwindow)
             )
         )

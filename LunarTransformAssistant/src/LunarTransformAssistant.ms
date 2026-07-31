@@ -25,70 +25,86 @@ if LunarTransformAssistantRollout != undefined do
 
 rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
 (
-    groupBox gbSource "SOURCE" pos:[8,8] width:364 height:64
-    button btnSetSource "Set Source" pos:[18,34] width:96 height:26
-    label lblSource "Source: Not set" pos:[124,39] width:236 height:18
+    groupBox gbSelectionMode "SELECTION MODE" pos:[8,8] width:364 height:184
+    radiobuttons rbSelectionMode labels:#(
+        "Manual",
+        "First Selected = Source",
+        "Last Selected = Source"
+    ) default:1 columns:1 pos:[18,28] width:330 height:54
+    button btnResetOrdered "Start / Reset Ordered Selection" pos:[18,88] width:340 height:26
+    label lblSelectionOrder "Selection Order: None" pos:[18,120] width:340 height:18
+    label lblActiveSource "Active Source: Not set" pos:[18,142] width:340 height:18
+    label lblActiveTargets "Active Targets: 0 Objects" pos:[18,162] width:340 height:18
 
-    groupBox gbTargets "TARGETS" pos:[8,78] width:364 height:92
-    button btnSetTargets "Set Targets" pos:[18,104] width:96 height:26
-    label lblTargets "Targets: 0 Objects" pos:[124,109] width:236 height:18
-    button btnClearTargets "Clear Targets" pos:[18,136] width:96 height:24
+    groupBox gbManual "MANUAL CAPTURE" pos:[8,198] width:364 height:102
+    button btnSetSource "Set Source" pos:[18,222] width:104 height:26 tooltip:"Manual mode only."
+    button btnSetTargets "Set Targets" pos:[128,222] width:104 height:26 tooltip:"Manual mode only."
+    button btnClearTargets "Clear Targets" pos:[238,222] width:120 height:26 tooltip:"Manual mode only."
+    label lblSource "Manual Source: Not set" pos:[18,254] width:340 height:18
+    label lblTargets "Manual Targets: 0 Objects" pos:[18,276] width:340 height:18
 
-    groupBox gbCopy "TRANSFORM CHANNELS" pos:[8,176] width:364 height:176
-    label lblCopyX "X" pos:[190,198] width:22 height:16
-    label lblCopyY "Y" pos:[244,198] width:22 height:16
-    label lblCopyZ "Z" pos:[298,198] width:22 height:16
-    label lblCopyPos "Position" pos:[22,222] width:100 height:18
-    checkbox cpyPosX "" pos:[190,220] width:18 height:18
-    checkbox cpyPosY "" pos:[244,220] width:18 height:18
-    checkbox cpyPosZ "" pos:[298,220] width:18 height:18
-    label lblCopyRot "Rotation" pos:[22,248] width:100 height:18
-    checkbox cpyRotX "" pos:[190,246] width:18 height:18
-    checkbox cpyRotY "" pos:[244,246] width:18 height:18
-    checkbox cpyRotZ "" pos:[298,246] width:18 height:18
-    label lblCopyScale "Scale" pos:[22,274] width:100 height:18
-    checkbox cpyScaleX "" pos:[190,272] width:18 height:18
-    checkbox cpyScaleY "" pos:[244,272] width:18 height:18
-    checkbox cpyScaleZ "" pos:[298,272] width:18 height:18
-    button btnCopyChannels "Copy Selected Channels" pos:[18,308] width:164 height:28
-    button btnInstanceChannels "Instance Selected Channels" pos:[190,308] width:168 height:28
+    groupBox gbCopy "TRANSFORM CHANNELS" pos:[8,308] width:364 height:176
+    label lblCopyX "X" pos:[190,330] width:22 height:16
+    label lblCopyY "Y" pos:[244,330] width:22 height:16
+    label lblCopyZ "Z" pos:[298,330] width:22 height:16
+    label lblCopyPos "Position" pos:[22,354] width:100 height:18
+    checkbox cpyPosX "" pos:[190,352] width:18 height:18
+    checkbox cpyPosY "" pos:[244,352] width:18 height:18
+    checkbox cpyPosZ "" pos:[298,352] width:18 height:18
+    label lblCopyRot "Rotation" pos:[22,380] width:100 height:18
+    checkbox cpyRotX "" pos:[190,378] width:18 height:18
+    checkbox cpyRotY "" pos:[244,378] width:18 height:18
+    checkbox cpyRotZ "" pos:[298,378] width:18 height:18
+    label lblCopyScale "Scale" pos:[22,406] width:100 height:18
+    checkbox cpyScaleX "" pos:[190,404] width:18 height:18
+    checkbox cpyScaleY "" pos:[244,404] width:18 height:18
+    checkbox cpyScaleZ "" pos:[298,404] width:18 height:18
+    button btnCopyChannels "Copy Selected Channels" pos:[18,440] width:164 height:28
+    button btnInstanceChannels "Instance Selected Channels" pos:[190,440] width:168 height:28
 
-    groupBox gbFull "FULL TRANSFORM" pos:[8,358] width:364 height:62
-    button btnCopyFull "Copy Full Transform" pos:[18,382] width:164 height:26
-    button btnInstanceFull "Instance Full Transform" pos:[190,382] width:168 height:26
+    groupBox gbFull "FULL TRANSFORM" pos:[8,490] width:364 height:62
+    button btnCopyFull "Copy Full Transform" pos:[18,514] width:164 height:26
+    button btnInstanceFull "Instance Full Transform" pos:[190,514] width:168 height:26
 
-    groupBox gbBase "BASE OBJECT" pos:[8,426] width:364 height:62
-    button btnCopyBase "Copy Base Object" pos:[18,450] width:164 height:26
-    button btnInstanceBase "Instance Base Object" pos:[190,450] width:168 height:26
+    groupBox gbBase "BASE OBJECT" pos:[8,558] width:364 height:62
+    button btnCopyBase "Copy Base Object" pos:[18,582] width:164 height:26
+    button btnInstanceBase "Instance Base Object" pos:[190,582] width:168 height:26
 
-    groupBox gbLock "TRANSFORM LOCK" pos:[8,494] width:364 height:160
-    label lblLockX "X" pos:[190,516] width:22 height:16
-    label lblLockY "Y" pos:[244,516] width:22 height:16
-    label lblLockZ "Z" pos:[298,516] width:22 height:16
-    label lblLockPos "Position" pos:[22,540] width:100 height:18
-    checkbox lockPosX "" pos:[190,538] width:18 height:18
-    checkbox lockPosY "" pos:[244,538] width:18 height:18
-    checkbox lockPosZ "" pos:[298,538] width:18 height:18
-    label lblLockRot "Rotation" pos:[22,566] width:100 height:18
-    checkbox lockRotX "" pos:[190,564] width:18 height:18
-    checkbox lockRotY "" pos:[244,564] width:18 height:18
-    checkbox lockRotZ "" pos:[298,564] width:18 height:18
-    label lblLockScale "Scale" pos:[22,592] width:100 height:18
-    checkbox lockScaleX "" pos:[190,590] width:18 height:18
-    checkbox lockScaleY "" pos:[244,590] width:18 height:18
-    checkbox lockScaleZ "" pos:[298,590] width:18 height:18
-    button btnLockChecked "Lock Checked" pos:[18,616] width:80 height:26
-    button btnUnlockChecked "Unlock Checked" pos:[102,616] width:88 height:26
-    button btnLockAll "Lock All" pos:[194,616] width:76 height:26
-    button btnUnlockAll "Unlock All" pos:[274,616] width:84 height:26
+    groupBox gbLock "TRANSFORM LOCK" pos:[8,626] width:364 height:160
+    label lblLockX "X" pos:[190,648] width:22 height:16
+    label lblLockY "Y" pos:[244,648] width:22 height:16
+    label lblLockZ "Z" pos:[298,648] width:22 height:16
+    label lblLockPos "Position" pos:[22,672] width:100 height:18
+    checkbox lockPosX "" pos:[190,670] width:18 height:18
+    checkbox lockPosY "" pos:[244,670] width:18 height:18
+    checkbox lockPosZ "" pos:[298,670] width:18 height:18
+    label lblLockRot "Rotation" pos:[22,698] width:100 height:18
+    checkbox lockRotX "" pos:[190,696] width:18 height:18
+    checkbox lockRotY "" pos:[244,696] width:18 height:18
+    checkbox lockRotZ "" pos:[298,696] width:18 height:18
+    label lblLockScale "Scale" pos:[22,724] width:100 height:18
+    checkbox lockScaleX "" pos:[190,722] width:18 height:18
+    checkbox lockScaleY "" pos:[244,722] width:18 height:18
+    checkbox lockScaleZ "" pos:[298,722] width:18 height:18
+    button btnLockChecked "Lock Checked" pos:[18,748] width:80 height:26
+    button btnUnlockChecked "Unlock Checked" pos:[102,748] width:88 height:26
+    button btnLockAll "Lock All" pos:[194,748] width:76 height:26
+    button btnUnlockAll "Unlock All" pos:[274,748] width:84 height:26
 
-    groupBox gbVisibility "VISIBILITY" pos:[8,660] width:364 height:58
-    button btnUnhide "Unhide Selected Nodes" pos:[18,683] width:340 height:25
+    groupBox gbVisibility "VISIBILITY" pos:[8,792] width:364 height:58
+    button btnUnhide "Unhide Selected Nodes" pos:[18,815] width:340 height:25
 
-    label lblStatus "Status: Ready" pos:[10,726] width:360 height:20
+    label lblStatus "Status: Ready" pos:[10,858] width:360 height:20
 
     local sourceNode = undefined
     local targetNodes = #()
+    local resolvedSourceNode = undefined
+    local resolvedTargetNodes = #()
+    local selectionMode = #manual
+    local orderedNodes = #()
+    local selectionTrackingCallback = undefined
+    local suspendSelectionTracking = false
+    local orderedSelectionIsValid = true
     local epsilon = 0.0001
 
     fn ltaLog level message =
@@ -108,20 +124,14 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
         lblStatus.text = "Status: " + message
     )
 
-    fn updateCaptureDisplay =
+    fn currentValidSelection =
     (
-        if sourceNode != undefined and isValidNode sourceNode then
-            lblSource.text = "Source: " + sourceNode.name
-        else
-            lblSource.text = "Source: Not set"
-
-        if targetNodes.count == 0 then
-            lblTargets.text = "Targets: 0 Objects"
-        else if targetNodes.count == 1 then
-            lblTargets.text = "Targets: 1 Object (" + targetNodes[1].name + ")"
-        else
-            lblTargets.text = "Targets: " + (targetNodes.count as string) +
-                " Objects (first: " + targetNodes[1].name + ")"
+        local nodes = #()
+        for nodeValue in selection where nodeValue != undefined and isValidNode nodeValue do
+        (
+            if (findItem nodes nodeValue) == 0 do append nodes nodeValue
+        )
+        nodes
     )
 
     fn cleanStoredNodes =
@@ -130,7 +140,7 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
 
         if sourceNode != undefined and not isValidNode sourceNode do
         (
-            ltaLog "WARN" "The stored Source was deleted or became invalid."
+            ltaLog "WARN" "The stored Manual Source was deleted or became invalid."
             sourceNode = undefined
         )
 
@@ -143,28 +153,159 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
             )
             else
             (
-                ltaLog "WARN" "A deleted or invalid stored Target was removed."
+                ltaLog "WARN" "A deleted or invalid stored Manual Target was removed."
             )
         )
 
         targetNodes = cleanTargets
-        updateCaptureDisplay()
+    )
+
+    fn cleanOrderedNodes =
+    (
+        local cleanNodes = #()
+
+        for nodeValue in orderedNodes do
+        (
+            if nodeValue != undefined and isValidNode nodeValue then
+            (
+                if (findItem cleanNodes nodeValue) == 0 do append cleanNodes nodeValue
+            )
+            else
+            (
+                ltaLog "WARN" "A deleted or invalid node was removed from ordered selection."
+            )
+        )
+
+        orderedNodes = cleanNodes
+    )
+
+    fn resolveSourceAndTargets =
+    (
+        cleanStoredNodes()
+        cleanOrderedNodes()
+
+        case selectionMode of
+        (
+            #manual:
+            (
+                if sourceNode == undefined then
+                    #(undefined, #(), false, "No valid Manual Source. Select one node and press Set Source.")
+                else if targetNodes.count == 0 then
+                    #(undefined, #(), false, "No valid Manual Targets. Select nodes and press Set Targets.")
+                else
+                    #(sourceNode, for nodeValue in targetNodes collect nodeValue, true, "")
+            )
+            #sourceFirst:
+            (
+                if not orderedSelectionIsValid then
+                    #(undefined, #(), false, "Ordered selection is invalid. Use Start / Reset Ordered Selection.")
+                else if orderedNodes.count < 2 then
+                    #(undefined, #(), false, "Ordered selection requires at least two valid nodes.")
+                else
+                    #(orderedNodes[1], for indexValue = 2 to orderedNodes.count collect orderedNodes[indexValue], true, "")
+            )
+            #sourceLast:
+            (
+                if not orderedSelectionIsValid then
+                    #(undefined, #(), false, "Ordered selection is invalid. Use Start / Reset Ordered Selection.")
+                else if orderedNodes.count < 2 then
+                    #(undefined, #(), false, "Ordered selection requires at least two valid nodes.")
+                else
+                    #(orderedNodes[orderedNodes.count],
+                        for indexValue = 1 to (orderedNodes.count - 1) collect orderedNodes[indexValue],
+                        true, "")
+            )
+            default:
+                #(undefined, #(), false, "Unknown Selection Mode.")
+        )
+    )
+
+    fn orderedSelectionText =
+    (
+        cleanOrderedNodes()
+
+        if orderedNodes.count == 0 then
+            "None"
+        else
+        (
+            local textValue = ""
+            local shownCount = 0
+            local maxCharacters = 46
+
+            for nodeValue in orderedNodes while textValue.count <= maxCharacters do
+            (
+                local candidate = if shownCount == 0 then nodeValue.name else textValue + " -> " + nodeValue.name
+                if candidate.count > maxCharacters then
+                    exit
+                else
+                (
+                    textValue = candidate
+                    shownCount += 1
+                )
+            )
+
+            if shownCount == 0 then
+                "... (+" + (orderedNodes.count as string) + ")"
+            else if shownCount < orderedNodes.count then
+                textValue + " -> ... (+" + ((orderedNodes.count - shownCount) as string) + ")"
+            else
+                textValue
+        )
+    )
+
+    fn updateSelectionUI =
+    (
+        cleanStoredNodes()
+        cleanOrderedNodes()
+
+        local manualEnabled = selectionMode == #manual
+        btnSetSource.enabled = manualEnabled
+        btnSetTargets.enabled = manualEnabled
+        btnClearTargets.enabled = manualEnabled
+        btnResetOrdered.enabled = not manualEnabled
+
+        if sourceNode != undefined and isValidNode sourceNode then
+            lblSource.text = "Manual Source: " + sourceNode.name
+        else
+            lblSource.text = "Manual Source: Not set"
+
+        if targetNodes.count == 0 then
+            lblTargets.text = "Manual Targets: 0 Objects"
+        else if targetNodes.count == 1 then
+            lblTargets.text = "Manual Targets: 1 Object (" + targetNodes[1].name + ")"
+        else
+            lblTargets.text = "Manual Targets: " + (targetNodes.count as string) +
+                " Objects (first: " + targetNodes[1].name + ")"
+
+        lblSelectionOrder.text = if orderedSelectionIsValid then
+            "Selection Order: " + orderedSelectionText()
+        else
+            "Selection Order: Invalid - reset required"
+
+        local resolution = resolveSourceAndTargets()
+        if resolution[3] then
+        (
+            lblActiveSource.text = "Active Source: " + resolution[1].name
+            lblActiveTargets.text = "Active Targets: " + (resolution[2].count as string) + " Objects"
+        )
+        else
+        (
+            lblActiveSource.text = "Active Source: Not ready"
+            lblActiveTargets.text = "Active Targets: 0 Objects"
+        )
     )
 
     fn validateSourceAndTargets =
     (
-        cleanStoredNodes()
+        local resolution = resolveSourceAndTargets()
+        resolvedSourceNode = resolution[1]
+        resolvedTargetNodes = resolution[2]
+        updateSelectionUI()
 
-        if sourceNode == undefined then
+        if not resolution[3] then
         (
-            setStatus "No valid Source."
-            ltaLog "ERROR" "No valid Source. Select one node and press Set Source."
-            false
-        )
-        else if targetNodes.count == 0 then
-        (
-            setStatus "No valid Targets."
-            ltaLog "ERROR" "No valid Targets. Select nodes and press Set Targets."
+            setStatus resolution[4]
+            ltaLog "WARN" resolution[4]
             false
         )
         else
@@ -669,9 +810,201 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
         nodes
     )
 
-    on btnSetSource pressed do
+    fn nodesFromAnimHandles nodeHandles =
     (
-        if selection.count != 1 then
+        local nodes = #()
+
+        for handleValue in nodeHandles do
+        (
+            local nodeValue = undefined
+            try
+            (
+                nodeValue = getAnimByHandle handleValue
+            )
+            catch
+            (
+                nodeValue = undefined
+            )
+
+            if nodeValue != undefined and isValidNode nodeValue and
+                (findItem nodes nodeValue) == 0 do
+            (
+                append nodes nodeValue
+            )
+        )
+
+        nodes
+    )
+
+    fn handleSelectionChanged eventName nodeHandles =
+    (
+        if not suspendSelectionTracking do
+        (
+            try
+            (
+                local eventNodes = nodesFromAnimHandles nodeHandles
+
+                if selectionMode != #manual then
+                (
+                    cleanOrderedNodes()
+                    local previousOrder = for nodeValue in orderedNodes collect nodeValue
+                    local currentNodes = currentValidSelection()
+                    local retainedNodes = #()
+                    local addedNodes = #()
+
+                    for nodeValue in previousOrder where
+                        (findItem currentNodes nodeValue) > 0 do
+                    (
+                        append retainedNodes nodeValue
+                    )
+
+                    for nodeValue in currentNodes where
+                        (findItem previousOrder nodeValue) == 0 do
+                    (
+                        append addedNodes nodeValue
+                    )
+
+                    orderedNodes = retainedNodes
+
+                    if addedNodes.count == 1 then
+                    (
+                        append orderedNodes addedNodes[1]
+                    )
+                    else if addedNodes.count > 1 then
+                    (
+                        orderedSelectionIsValid = false
+                        ltaLog "WARN" "Multiple nodes were selected simultaneously."
+                        ltaLog "WARN" "Ordered selection cannot determine click order."
+                        ltaLog "WARN" "Reset ordered selection and select nodes one at a time with Ctrl+Click."
+                        setStatus "Multiple nodes changed selection at once. Reset ordered selection."
+                    )
+
+                    if eventNodes.count == 0 and nodeHandles.count > 0 do
+                        cleanOrderedNodes()
+                )
+
+                updateSelectionUI()
+            )
+            catch
+            (
+                ltaLog "ERROR" ("Selection tracking callback failed: " + exceptionText())
+            )
+        )
+    )
+
+    fn handleNodesDeleted eventName nodeHandles =
+    (
+        if not suspendSelectionTracking do
+        (
+            try
+            (
+                cleanStoredNodes()
+                cleanOrderedNodes()
+                updateSelectionUI()
+            )
+            catch
+            (
+                ltaLog "ERROR" ("Deleted-node cleanup callback failed: " + exceptionText())
+            )
+        )
+    )
+
+    fn releaseSelectionTracking =
+    (
+        if selectionTrackingCallback != undefined do
+        (
+            try
+            (
+                selectionTrackingCallback.enabled = false
+            )
+            catch()
+
+            selectionTrackingCallback = undefined
+            gc light:true
+        )
+    )
+
+    fn registerSelectionTracking =
+    (
+        releaseSelectionTracking()
+
+        try
+        (
+            selectionTrackingCallback = NodeEventCallback mouseUp:true \
+                selectionChanged:handleSelectionChanged deleted:handleNodesDeleted
+        )
+        catch
+        (
+            selectionTrackingCallback = undefined
+            ltaLog "ERROR" ("Selection tracking callback registration failed: " + exceptionText())
+        )
+    )
+
+    fn setSelectionMode modeIndex =
+    (
+        selectionMode = case modeIndex of
+        (
+            1: #manual
+            2: #sourceFirst
+            3: #sourceLast
+            default: #manual
+        )
+
+        if selectionMode != #manual and orderedNodes.count == 0 and
+            (currentValidSelection()).count > 0 do
+        (
+            orderedSelectionIsValid = false
+            setStatus "Reset ordered selection before recording click order."
+            ltaLog "WARN" "Current selection has no recorded click order. Reset ordered selection."
+        )
+
+        updateSelectionUI()
+    )
+
+    fn resetOrderedSelection =
+    (
+        if selectionMode == #manual then
+        (
+            setStatus "Start / Reset Ordered Selection is available in an ordered mode."
+            ltaLog "WARN" "Choose First Selected or Last Selected mode before resetting ordered selection."
+        )
+        else
+        (
+            suspendSelectionTracking = true
+            try
+            (
+                orderedNodes = #()
+                orderedSelectionIsValid = true
+                clearSelection()
+            )
+            catch
+            (
+                orderedSelectionIsValid = false
+                ltaLog "ERROR" ("Ordered selection reset failed: " + exceptionText())
+            )
+            suspendSelectionTracking = false
+
+            updateSelectionUI()
+            if orderedSelectionIsValid then
+            (
+                setStatus "Ordered selection reset. Select nodes one at a time."
+                ltaLog "INFO" "Ordered selection reset. Select nodes one at a time with Ctrl+Click."
+            )
+            else
+            (
+                setStatus "Ordered selection reset failed. See Listener."
+            )
+        )
+    )
+
+    fn captureManualSource =
+    (
+        if selectionMode != #manual then
+        (
+            setStatus "Set Source is available in Manual mode only."
+            ltaLog "WARN" "Set Source is a Manual mode command."
+        )
+        else if selection.count != 1 then
         (
             setStatus "Select exactly one Source node."
             ltaLog "WARN" "Set Source requires exactly one selected node."
@@ -696,55 +1029,77 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
                     if (findItem filteredTargets targetNode) == 0 do append filteredTargets targetNode
                 )
                 targetNodes = filteredTargets
-                updateCaptureDisplay()
+                updateSelectionUI()
                 setStatus ("Source set: " + sourceNode.name)
                 ltaLog "INFO" ("Source set explicitly: " + sourceNode.name)
             )
         )
     )
 
-    on btnSetTargets pressed do
+    fn captureManualTargets =
     (
-        local capturedTargets = #()
-        local sourceWasExcluded = false
-
-        for selectedNode in selection do
+        if selectionMode != #manual then
         (
-            if selectedNode != undefined and isValidNode selectedNode then
-            (
-                if sourceNode != undefined and isValidNode sourceNode and selectedNode == sourceNode then
-                    sourceWasExcluded = true
-                else if (findItem capturedTargets selectedNode) == 0 do
-                    append capturedTargets selectedNode
-            )
-        )
-
-        targetNodes = capturedTargets
-        updateCaptureDisplay()
-
-        if targetNodes.count == 0 then
-        (
-            setStatus "No valid Targets captured."
-            ltaLog "WARN" "Set Targets captured no valid nodes."
+            setStatus "Set Targets is available in Manual mode only."
+            ltaLog "WARN" "Set Targets is a Manual mode command."
         )
         else
         (
-            setStatus ("Targets set: " + (targetNodes.count as string))
-            ltaLog "INFO" ("Targets set explicitly: " + (targetNodes.count as string))
-            if sourceWasExcluded do
-                ltaLog "WARN" "The Source was present in the Target selection and was excluded."
+            local capturedTargets = #()
+            local sourceWasExcluded = false
+
+            for selectedNode in selection do
+            (
+                if selectedNode != undefined and isValidNode selectedNode then
+                (
+                    if sourceNode != undefined and isValidNode sourceNode and selectedNode == sourceNode then
+                        sourceWasExcluded = true
+                    else if (findItem capturedTargets selectedNode) == 0 do
+                        append capturedTargets selectedNode
+                )
+            )
+
+            targetNodes = capturedTargets
+            updateSelectionUI()
+
+            if targetNodes.count == 0 then
+            (
+                setStatus "No valid Targets captured."
+                ltaLog "WARN" "Set Targets captured no valid nodes."
+            )
+            else
+            (
+                setStatus ("Targets set: " + (targetNodes.count as string))
+                ltaLog "INFO" ("Targets set explicitly: " + (targetNodes.count as string))
+                if sourceWasExcluded do
+                    ltaLog "WARN" "The Source was present in the Target selection and was excluded."
+            )
         )
     )
 
-    on btnClearTargets pressed do
+    fn clearManualTargets =
     (
-        targetNodes = #()
-        updateCaptureDisplay()
-        setStatus "Targets cleared."
-        ltaLog "INFO" "Stored Targets cleared."
+        if selectionMode != #manual then
+        (
+            setStatus "Clear Targets is available in Manual mode only."
+            ltaLog "WARN" "Clear Targets is a Manual mode command."
+        )
+        else
+        (
+            targetNodes = #()
+            updateSelectionUI()
+            setStatus "Targets cleared."
+            ltaLog "INFO" "Stored Manual Targets cleared."
+        )
     )
 
-    on btnCopyChannels pressed do
+    on rbSelectionMode changed state do setSelectionMode state
+    on btnResetOrdered pressed do resetOrderedSelection()
+    on btnSetSource pressed do captureManualSource()
+    on btnSetTargets pressed do captureManualTargets()
+    on btnClearTargets pressed do clearManualTargets()
+
+    fn runCopyChannels =
     (
         local flags = copyChecks()
         local requestedCount = checkedCount flags
@@ -765,9 +1120,9 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
             (
                 at time currentTime
                 (
-                    for targetNode in targetNodes do
+                    for targetNode in resolvedTargetNodes do
                     (
-                        local result = copySelectedChannelsToTarget sourceNode targetNode flags
+                        local result = copySelectedChannelsToTarget resolvedSourceNode targetNode flags
                         appliedChannels += result[1]
 
                         if result[1] == requestedCount then
@@ -787,14 +1142,15 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
 
             if appliedChannels > 0 then
                 setStatus ("Copied " + (appliedChannels as string) + " channel values across " +
-                    (targetNodes.count as string) + " Targets. Partial/failed: " +
+                    (resolvedTargetNodes.count as string) + " Targets. Partial/failed: " +
                     (partialTargets as string) + ".")
             else
                 setStatus "No channel values were copied. See Listener."
         )
+        updateSelectionUI()
     )
 
-    on btnInstanceChannels pressed do
+    fn runInstanceChannels =
     (
         local flags = copyChecks()
         local requestedCount = checkedCount flags
@@ -813,14 +1169,14 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
 
             undo "LTA Instance Selected Channels" on
             (
-                for targetNode in targetNodes do
+                for targetNode in resolvedTargetNodes do
                 (
                     local appliedToTarget = 0
                     local reasons = #()
 
                     for channelIndex = 1 to 9 where flags[channelIndex] do
                     (
-                        local result = instanceXYZAxis sourceNode targetNode channelIndex
+                        local result = instanceXYZAxis resolvedSourceNode targetNode channelIndex
                         if result[1] then
                         (
                             appliedToTarget += 1
@@ -853,20 +1209,21 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
             else
                 setStatus "No component controllers were instanced. See Listener."
         )
+        updateSelectionUI()
     )
 
-    on btnCopyFull pressed do
+    fn runCopyFull =
     (
         if validateSourceAndTargets() then
         (
             local successCount = 0
             local skippedCount = 0
             local failedCount = 0
-            local sourceTransform = sourceNode.transform
+            local sourceTransform = resolvedSourceNode.transform
 
             undo "LTA Copy Full Transform" on
             (
-                for targetNode in targetNodes do
+                for targetNode in resolvedTargetNodes do
                 (
                     if matricesNear targetNode.transform sourceTransform then
                     (
@@ -926,9 +1283,10 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
             setStatus ("Copied full transform to " + (successCount as string) + " Targets. Failed: " +
                 (failedCount as string) + ".")
         )
+        updateSelectionUI()
     )
 
-    on btnInstanceFull pressed do
+    fn runInstanceFull =
     (
         if validateSourceAndTargets() then
         (
@@ -940,7 +1298,7 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
 
             try
             (
-                sourceController = sourceNode.transform.controller
+                sourceController = resolvedSourceNode.transform.controller
             )
             catch
             (
@@ -955,12 +1313,12 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
             (
                 undo "LTA Instance Full Transform" on
                 (
-                    for targetNode in targetNodes do
+                    for targetNode in resolvedTargetNodes do
                     (
                         local oldController = undefined
                         local assignmentAttempted = false
 
-                        if targetNode.parent != sourceNode.parent do
+                        if targetNode.parent != resolvedSourceNode.parent do
                         (
                             parentWarnings += 1
                             ltaLog "WARN" (targetNode.name +
@@ -1028,13 +1386,14 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
                     (parentWarnings as string) + ".")
             )
         )
+        updateSelectionUI()
     )
 
-    on btnCopyBase pressed do
+    fn runCopyBase =
     (
         if validateSourceAndTargets() then
         (
-            local sourceSupport = isSupportedBaseNode sourceNode
+            local sourceSupport = isSupportedBaseNode resolvedSourceNode
             if not sourceSupport[1] then
             (
                 setStatus "Source Base Object is unsupported."
@@ -1045,11 +1404,11 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
                 local successCount = 0
                 local skippedCount = 0
                 local failedCount = 0
-                local sourceBase = sourceNode.baseObject
+                local sourceBase = resolvedSourceNode.baseObject
 
                 undo "LTA Copy Base Object" on
                 (
-                    for targetNode in targetNodes do
+                    for targetNode in resolvedTargetNodes do
                     (
                         local targetSupport = isSupportedBaseNode targetNode
                         if not targetSupport[1] then
@@ -1119,13 +1478,14 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
                     (failedCount as string) + ".")
             )
         )
+        updateSelectionUI()
     )
 
-    on btnInstanceBase pressed do
+    fn runInstanceBase =
     (
         if validateSourceAndTargets() then
         (
-            local sourceSupport = isSupportedBaseNode sourceNode
+            local sourceSupport = isSupportedBaseNode resolvedSourceNode
             if not sourceSupport[1] then
             (
                 setStatus "Source Base Object is unsupported."
@@ -1136,11 +1496,11 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
                 local successCount = 0
                 local skippedCount = 0
                 local failedCount = 0
-                local sourceBase = sourceNode.baseObject
+                local sourceBase = resolvedSourceNode.baseObject
 
                 undo "LTA Instance Base Object" on
                 (
-                    for targetNode in targetNodes do
+                    for targetNode in resolvedTargetNodes do
                     (
                         local targetSupport = isSupportedBaseNode targetNode
                         if not targetSupport[1] then
@@ -1206,7 +1566,15 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
                     (failedCount as string) + ".")
             )
         )
+        updateSelectionUI()
     )
+
+    on btnCopyChannels pressed do runCopyChannels()
+    on btnInstanceChannels pressed do runInstanceChannels()
+    on btnCopyFull pressed do runCopyFull()
+    on btnInstanceFull pressed do runInstanceFull()
+    on btnCopyBase pressed do runCopyBase()
+    on btnInstanceBase pressed do runInstanceBase()
 
     on btnUnhide pressed do
     (
@@ -1429,11 +1797,18 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
 
     on LunarTransformAssistantRollout open do
     (
-        updateCaptureDisplay()
+        registerSelectionTracking()
+        updateSelectionUI()
         setStatus "Ready"
         ltaLog "INFO" "Lunar Transform Assistant opened."
     )
+
+    on LunarTransformAssistantRollout close do
+    (
+        releaseSelectionTracking()
+        ltaLog "INFO" "Lunar Transform Assistant selection tracking stopped."
+    )
 )
 
-createDialog LunarTransformAssistantRollout 380 754 \
+createDialog LunarTransformAssistantRollout 380 886 \
     style:#(#style_titlebar, #style_sysmenu, #style_toolwindow)
