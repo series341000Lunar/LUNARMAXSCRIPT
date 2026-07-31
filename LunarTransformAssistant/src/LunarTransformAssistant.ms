@@ -101,7 +101,9 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
     local resolvedSourceNode = undefined
     local resolvedTargetNodes = #()
     local selectionMode = #manual
-    local orderedNodes = #()
+    local selectionBatches = #()
+    local previousSelectionSnapshot = #()
+    local nextSelectionBatchSequence = 1
     local selectionTrackingCallback = undefined
     local suspendSelectionTracking = false
     local orderedSelectionIsValid = true
@@ -160,29 +162,193 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
         targetNodes = cleanTargets
     )
 
-    fn cleanOrderedNodes =
+    fn cloneNodeArray nodeArray =
     (
-        local cleanNodes = #()
+        for nodeValue in nodeArray collect nodeValue
+    )
 
-        for nodeValue in orderedNodes do
+    fn nodeHandleValue nodeValue =
+    (
+        local handleValue = 0
+        try
         (
-            if nodeValue != undefined and isValidNode nodeValue then
+            handleValue = getHandleByAnim nodeValue
+        )
+        catch
+        (
+            handleValue = 0
+        )
+        handleValue
+    )
+
+    fn nodeComesBefore leftNode rightNode =
+    (
+        local leftHandle = nodeHandleValue leftNode
+        local rightHandle = nodeHandleValue rightNode
+
+        if leftHandle > 0 and rightHandle > 0 and leftHandle != rightHandle then
+            leftHandle < rightHandle
+        else
+        (
+            local leftName = toLower leftNode.name
+            local rightName = toLower rightNode.name
+            if leftName != rightName then leftName < rightName else leftHandle < rightHandle
+        )
+    )
+
+    fn deterministicNodeOrder nodeArray =
+    (
+        local remainingNodes = cloneNodeArray nodeArray
+        local sortedNodes = #()
+
+        while remainingNodes.count > 0 do
+        (
+            local bestIndex = 1
+            for indexValue = 2 to remainingNodes.count where
+                nodeComesBefore remainingNodes[indexValue] remainingNodes[bestIndex] do
             (
-                if (findItem cleanNodes nodeValue) == 0 do append cleanNodes nodeValue
+                bestIndex = indexValue
+            )
+
+            append sortedNodes remainingNodes[bestIndex]
+            deleteItem remainingNodes bestIndex
+        )
+
+        sortedNodes
+    )
+
+    fn cleanSelectionBatches =
+    (
+        local cleanBatches = #()
+        local seenNodes = #()
+        local previousSequence = 0
+        local batchStateIsValid = true
+
+        for batchValue in selectionBatches do
+        (
+            if batchValue.count != 3 or
+                (batchValue[1] != #single and batchValue[1] != #multiple) or
+                batchValue[3] <= previousSequence then
+            (
+                batchStateIsValid = false
+                ltaLog "ERROR" "Ordered selection batch data is corrupt."
             )
             else
             (
-                ltaLog "WARN" "A deleted or invalid node was removed from ordered selection."
+                local cleanNodes = #()
+                previousSequence = batchValue[3]
+
+                for nodeValue in batchValue[2] do
+                (
+                    if nodeValue != undefined and isValidNode nodeValue then
+                    (
+                        if (findItem seenNodes nodeValue) == 0 then
+                        (
+                            append seenNodes nodeValue
+                            append cleanNodes nodeValue
+                        )
+                        else
+                        (
+                            batchStateIsValid = false
+                            ltaLog "ERROR" "A node appeared in more than one ordered selection batch."
+                        )
+                    )
+                    else
+                    (
+                        ltaLog "WARN" "A deleted or invalid node was removed from ordered selection."
+                    )
+                )
+
+                if batchValue[1] == #single and cleanNodes.count > 1 then
+                (
+                    batchStateIsValid = false
+                    ltaLog "ERROR" "A Single Selection Batch contains more than one node."
+                )
+                else if cleanNodes.count > 0 then
+                (
+                    if batchValue[1] == #multiple do cleanNodes = deterministicNodeOrder cleanNodes
+                    append cleanBatches #(batchValue[1], cleanNodes, batchValue[3])
+                )
             )
         )
 
-        orderedNodes = cleanNodes
+        selectionBatches = cleanBatches
+        if not batchStateIsValid do orderedSelectionIsValid = false
+        batchStateIsValid
+    )
+
+    fn flattenedOrderedNodes =
+    (
+        cleanSelectionBatches()
+        local flattenedNodes = #()
+        for batchValue in selectionBatches do
+        (
+            for nodeValue in batchValue[2] do append flattenedNodes nodeValue
+        )
+        flattenedNodes
+    )
+
+    fn hasMultipleSelectionBatch =
+    (
+        local hasMultiple = false
+        for batchValue in selectionBatches where batchValue[1] == #multiple do
+        (
+            hasMultiple = true
+            exit
+        )
+        hasMultiple
+    )
+
+    fn hasSingleSelectionBatch =
+    (
+        local hasSingle = false
+        for batchValue in selectionBatches where batchValue[1] == #single do
+        (
+            hasSingle = true
+            exit
+        )
+        hasSingle
+    )
+
+    fn removeNodesFromSelectionBatches nodesToRemove =
+    (
+        local remainingBatches = #()
+
+        for batchValue in selectionBatches do
+        (
+            local remainingNodes = #()
+            for nodeValue in batchValue[2] where
+                (findItem nodesToRemove nodeValue) == 0 do append remainingNodes nodeValue
+
+            if remainingNodes.count > 0 do
+                append remainingBatches #(batchValue[1], remainingNodes, batchValue[3])
+        )
+
+        selectionBatches = remainingBatches
+    )
+
+    fn appendSelectionBatch batchType nodesToAdd =
+    (
+        local uniqueNodes = #()
+        removeNodesFromSelectionBatches nodesToAdd
+
+        for nodeValue in nodesToAdd where nodeValue != undefined and isValidNode nodeValue do
+        (
+            if (findItem uniqueNodes nodeValue) == 0 do append uniqueNodes nodeValue
+        )
+
+        if batchType == #multiple do uniqueNodes = deterministicNodeOrder uniqueNodes
+        if uniqueNodes.count > 0 do
+        (
+            append selectionBatches #(batchType, uniqueNodes, nextSelectionBatchSequence)
+            nextSelectionBatchSequence += 1
+        )
     )
 
     fn resolveSourceAndTargets =
     (
         cleanStoredNodes()
-        cleanOrderedNodes()
+        local orderedNodes = flattenedOrderedNodes()
 
         case selectionMode of
         (
@@ -222,10 +388,17 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
 
     fn orderedSelectionText =
     (
-        cleanOrderedNodes()
+        local orderedNodes = flattenedOrderedNodes()
 
         if orderedNodes.count == 0 then
             "None"
+        else if hasMultipleSelectionBatch() then
+        (
+            if hasSingleSelectionBatch() then
+                "Mixed / Multiple Selection - " + (orderedNodes.count as string) + " Objects"
+            else
+                "Multiple Selection - " + (orderedNodes.count as string) + " Objects"
+        )
         else
         (
             local textValue = ""
@@ -256,7 +429,7 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
     fn updateSelectionUI =
     (
         cleanStoredNodes()
-        cleanOrderedNodes()
+        cleanSelectionBatches()
 
         local manualEnabled = selectionMode == #manual
         btnSetSource.enabled = manualEnabled
@@ -810,84 +983,68 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
         nodes
     )
 
-    fn nodesFromAnimHandles nodeHandles =
-    (
-        local nodes = #()
-
-        for handleValue in nodeHandles do
-        (
-            local nodeValue = undefined
-            try
-            (
-                nodeValue = getAnimByHandle handleValue
-            )
-            catch
-            (
-                nodeValue = undefined
-            )
-
-            if nodeValue != undefined and isValidNode nodeValue and
-                (findItem nodes nodeValue) == 0 do
-            (
-                append nodes nodeValue
-            )
-        )
-
-        nodes
-    )
-
     fn handleSelectionChanged eventName nodeHandles =
     (
         if not suspendSelectionTracking do
         (
             try
             (
-                local eventNodes = nodesFromAnimHandles nodeHandles
-
                 if selectionMode != #manual then
                 (
-                    cleanOrderedNodes()
-                    local previousOrder = for nodeValue in orderedNodes collect nodeValue
+                    cleanSelectionBatches()
                     local currentNodes = currentValidSelection()
-                    local retainedNodes = #()
                     local addedNodes = #()
-
-                    for nodeValue in previousOrder where
-                        (findItem currentNodes nodeValue) > 0 do
-                    (
-                        append retainedNodes nodeValue
-                    )
+                    local removedNodes = #()
 
                     for nodeValue in currentNodes where
-                        (findItem previousOrder nodeValue) == 0 do
+                        (findItem previousSelectionSnapshot nodeValue) == 0 do
                     (
                         append addedNodes nodeValue
                     )
 
-                    orderedNodes = retainedNodes
+                    for nodeValue in previousSelectionSnapshot where
+                        nodeValue != undefined and isValidNode nodeValue and
+                        (findItem currentNodes nodeValue) == 0 do
+                    (
+                        append removedNodes nodeValue
+                    )
+
+                    if removedNodes.count > 0 do removeNodesFromSelectionBatches removedNodes
 
                     if addedNodes.count == 1 then
                     (
-                        append orderedNodes addedNodes[1]
+                        appendSelectionBatch #single addedNodes
                     )
                     else if addedNodes.count > 1 then
                     (
-                        orderedSelectionIsValid = false
-                        ltaLog "WARN" "Multiple nodes were selected simultaneously."
-                        ltaLog "WARN" "Ordered selection cannot determine click order."
-                        ltaLog "WARN" "Reset ordered selection and select nodes one at a time with Ctrl+Click."
-                        setStatus "Multiple nodes changed selection at once. Reset ordered selection."
+                        appendSelectionBatch #multiple addedNodes
                     )
 
-                    if eventNodes.count == 0 and nodeHandles.count > 0 do
-                        cleanOrderedNodes()
+                    previousSelectionSnapshot = cloneNodeArray currentNodes
+                    cleanSelectionBatches()
+
+                    local orderedCount = (flattenedOrderedNodes()).count
+                    if addedNodes.count > 1 then
+                    (
+                        if hasSingleSelectionBatch() then
+                            setStatus ("Mixed / multiple selection captured: " + (orderedCount as string) + " objects.")
+                        else
+                            setStatus ("Multiple selection captured: " + (orderedCount as string) + " objects.")
+                    )
+                    else if orderedCount < 2 then
+                        setStatus "Select at least two objects."
+                    else
+                        setStatus ("Ordered selection captured: " + (orderedCount as string) + " objects.")
                 )
 
                 updateSelectionUI()
             )
             catch
             (
+                orderedSelectionIsValid = false
                 ltaLog "ERROR" ("Selection tracking callback failed: " + exceptionText())
+                setStatus "Selection tracking failed. Reset ordered selection."
+                updateSelectionUI()
             )
         )
     )
@@ -899,12 +1056,16 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
             try
             (
                 cleanStoredNodes()
-                cleanOrderedNodes()
+                cleanSelectionBatches()
+                local currentNodes = currentValidSelection()
+                previousSelectionSnapshot = cloneNodeArray currentNodes
                 updateSelectionUI()
             )
             catch
             (
+                orderedSelectionIsValid = false
                 ltaLog "ERROR" ("Deleted-node cleanup callback failed: " + exceptionText())
+                setStatus "Deleted-node cleanup failed. Reset ordered selection."
             )
         )
     )
@@ -950,12 +1111,17 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
             default: #manual
         )
 
-        if selectionMode != #manual and orderedNodes.count == 0 and
-            (currentValidSelection()).count > 0 do
+        if selectionMode != #manual do
         (
-            orderedSelectionIsValid = false
-            setStatus "Reset ordered selection before recording click order."
-            ltaLog "WARN" "Current selection has no recorded click order. Reset ordered selection."
+            local currentNodes = currentValidSelection()
+            previousSelectionSnapshot = cloneNodeArray currentNodes
+
+            if selectionBatches.count == 0 and currentNodes.count > 0 do
+            (
+                orderedSelectionIsValid = false
+                setStatus "Reset ordered selection before recording selection batches."
+                ltaLog "WARN" "Current selection has no recorded batch history. Reset ordered selection."
+            )
         )
 
         updateSelectionUI()
@@ -973,7 +1139,9 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
             suspendSelectionTracking = true
             try
             (
-                orderedNodes = #()
+                selectionBatches = #()
+                previousSelectionSnapshot = #()
+                nextSelectionBatchSequence = 1
                 orderedSelectionIsValid = true
                 clearSelection()
             )
@@ -987,8 +1155,8 @@ rollout LunarTransformAssistantRollout "Lunar Transform Assistant"
             updateSelectionUI()
             if orderedSelectionIsValid then
             (
-                setStatus "Ordered selection reset. Select nodes one at a time."
-                ltaLog "INFO" "Ordered selection reset. Select nodes one at a time with Ctrl+Click."
+                setStatus "Ordered selection reset. Single and multiple selections are ready."
+                ltaLog "INFO" "Ordered selection reset. Single and multiple selection batches are ready."
             )
             else
             (

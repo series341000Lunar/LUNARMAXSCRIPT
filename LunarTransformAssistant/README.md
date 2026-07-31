@@ -84,32 +84,40 @@ Select one or more nodes and press Set Targets.
 ### First Selected = Source
 
 Reset ordered selection.
-Select nodes one at a time using Ctrl+Click.
-The first selected node becomes Source.
+Build the ordered set with any mix of single selections and multiple selections.
+The first node in the flattened batch order becomes Source.
 All later nodes become Targets.
 
 ### Last Selected = Source
 
 Reset ordered selection.
-Select nodes one at a time using Ctrl+Click.
-The last selected node becomes Source.
+Build the ordered set with any mix of single selections and multiple selections.
+The last node in the flattened batch order becomes Source.
 All earlier nodes become Targets.
 
-Manual Source and Targets are stored separately from the ordered node list. Switching modes does not clear either state. First Selected and Last Selected share the same ordered list, so changing between them immediately reinterprets the active Source and Targets without requiring reselection.
+Manual Source and Targets are stored separately from ordered selection batches. Switching modes does not clear either state. First Selected and Last Selected share the same batch history, so changing between them immediately reinterprets the active Source and Targets without requiring reselection.
 
 All transform-channel, Full Transform, and Base Object operations use one common Source/Targets resolver immediately before execution. Transform Lock and Unhide Selected Nodes continue to use the current 3ds Max selection.
 
 ## Ordered Selection Limitations
 
-- Select nodes one at a time.
-- Multiple nodes selected in one action have no reliable click order.
-- Rectangle selection and Select By Name multi-selection invalidate ordered selection.
+- Each action that adds one node creates a Single Selection Batch and preserves its exact action order.
+- Each action that adds several nodes creates a Multiple Selection Batch. Rectangle selection and Select By Name multi-selection are supported.
+- Selection batches are flattened in creation order.
+- Nodes inside a Multiple Selection Batch use a stable deterministic order based on ascending node handle, with a name fallback when a handle is unavailable.
+- A Multiple Selection Batch has no meaningful viewport click order. The deterministic handle order is an implementation order, not a claim about individual mouse order.
+- Mixed single and multiple batches are supported. For example, single A, multiple B-Z, then single Final keeps A first and Final last.
+- When any Multiple Selection Batch is present, the UI intentionally hides individual node names and internal order. It shows only a `Multiple Selection` or `Mixed / Multiple Selection` summary and object count.
 - Deselecting removes a node from the order.
-- Reselecting appends it to the end.
+- A Multiple Selection Batch remains a multiple batch if deselection leaves only one node in it.
+- Reselecting one node creates a new last Single Selection Batch. Reselecting several nodes creates a new last Multiple Selection Batch.
+- A node cannot appear in more than one batch.
 - At least two valid nodes are required.
 - Use Start / Reset Ordered Selection before beginning a new ordered selection.
 
-The ordered-selection callback receives node animation handles from 3ds Max and resolves them to valid nodes. If one event adds multiple nodes, the tool marks the ordered list invalid and blocks Source/Target operations rather than inventing an order. Deleted nodes are removed during callback processing, UI refresh, and operation validation.
+The ordered-selection callback compares a stored previous selection snapshot with the current valid selection. The added set determines whether the new batch is Single or Multiple, and the removed set updates existing batches. Callback AnimHandle array order and the 3ds Max `selection` collection order are never treated as user click order. Deleted nodes are removed during callback processing, UI refresh, and operation validation.
+
+Normal multi-selection does not invalidate ordered selection. Invalid state is reserved for corrupt internal batch data, callback failure, or a current selection that cannot be reconciled safely because ordered tracking was not reset before it began.
 
 ## Copy versus Instance
 
@@ -304,7 +312,14 @@ Special rigs, XRefs, group heads, non-Geometry Base Objects, and plugin-specific
 - [ ] Deselect B and confirm the order becomes A, C.
 - [ ] Reselect B and confirm the order becomes A, C, B.
 - [ ] Reset, select only A, and confirm Source/Target operations are blocked.
-- [ ] Reset, rectangle-select multiple nodes, and confirm the ordered selection becomes invalid.
+- [ ] Reset, rectangle-select at least 20 nodes, and confirm a valid Multiple Selection summary and stable Source.
+- [ ] Repeat the same multi-selection with a different apparent selection order and confirm the same Source is resolved.
+- [ ] Test single A, then a multiple batch, and confirm A is Source in First Selected mode.
+- [ ] Test a multiple batch, then single Final, and confirm Final is Source in Last Selected mode.
+- [ ] Test single A, multiple B-Z, then single Final in both ordered modes.
+- [ ] Deselect several nodes from a Multiple Selection Batch and confirm only those nodes are removed.
+- [ ] Deselect and reselect one node and confirm it becomes a new last Single Selection Batch.
+- [ ] Confirm individual names are hidden whenever any Multiple Selection Batch exists.
 - [ ] Delete a stored ordered node and confirm it is removed without an exception.
 - [ ] Close and reopen the rollout, then confirm one selection event is recorded only once.
 
@@ -370,7 +385,10 @@ The implementation was reviewed for:
 
 - separate Manual capture and callback-tracked ordered Source/Target state
 - no use of `selection[]` collection order as click order
-- shared Source First/Source Last resolver with simultaneous-selection invalidation
+- shared Source First/Source Last resolver over flattened single and multiple selection batches
+- previous/current selection snapshot differencing without trusting callback handle order
+- deterministic node-handle ordering inside Multiple Selection Batches
+- duplicate prevention, deselect removal, empty-batch cleanup, and reselect append behavior
 - rollout-local state and a single intentional global rollout reference
 - stale-node cleanup with `isValidNode` for Manual and ordered state
 - NodeEventCallback registration, release, and duplicate-registration prevention
@@ -399,9 +417,12 @@ The files were loaded in Autodesk 3ds Max 2026.3.3 Batch and the following check
 - Full world-transform Copy with parent preservation
 - Full transform-controller Instance with parent preservation
 - Manual Source/Targets resolver and Manual state preservation across mode changes
-- First Selected and Last Selected reinterpretation of one shared ordered list
+- First Selected and Last Selected reinterpretation of one shared flattened batch history
 - deselect removal and reselect append behavior
-- simultaneous multi-selection invalidation and operation blocking
+- simultaneous multi-selection capture as a deterministic Multiple Selection Batch
+- sequential-only, multiple-only (20+ objects), single-to-multiple, multiple-to-single, and single-multiple-single resolution
+- stable Source resolution for repeated multiple selection
+- partial deselection from a Multiple Selection Batch and single-node reselect as a new batch
 - deleted-node cleanup from Manual and ordered state
 - callback release on rollout close and one callback registration on reopen
 - Copy Selected Channels, Copy Full Transform, and Copy Base Object in all three Selection Modes
