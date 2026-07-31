@@ -1,0 +1,26 @@
+# 3ds Max automatic backups and transient files
+AutoBackup/
+autoback/
+*.bak
+*.tmp
+*.log
+*.max~
+*.autosave
+
+# Test output and generated smoke-test artifacts
+test-results/
+.lta_runtime_smoke_test.ms
+*runtime-smoke*.txt
+
+# Codex/local tool temporary state
+.codex/
+.codex-tmp/
+codex-tmp/
+
+# Personal environment and IDE settings
+.env
+.env.*
+!.env.example
+*.user
+*.suo
+.vs/
