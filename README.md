@@ -14,6 +14,13 @@ Transform, controller, base-object, visibility, and transform-lock utility for A
 - [MAXScript Source](LunarTransformAssistant/src/LunarTransformAssistant.ms)
 - [MacroScript Launcher](LunarTransformAssistant/macros/LunarTransformAssistant.mcr)
 
+### Lunar Material ID Normalizer
+
+Normalizes Editable Poly face Material IDs and Multi/Sub-Object material assignments to a selected Master object.
+
+- [Documentation](LunarMaterialIDNormalizer/README.md)
+- [MAXScript Source](LunarMaterialIDNormalizer/src/LunarMaterialIDNormalizer.ms)
+
 ## Repository Structure
 
 Shared repository files remain at the root. Each tool has a dedicated top-level directory containing its documentation and implementation files.
