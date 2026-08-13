@@ -16,40 +16,44 @@ if LunarMaterialIDNormalizerRollout != undefined do
     try (destroyDialog LunarMaterialIDNormalizerRollout) catch()
 )
 
-rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:760 height:936
+rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:760 height:1018
 (
-    groupBox gbPreprocess "PREPROCESS" pos:[8,8] width:744 height:118
+    groupBox gbPreprocess "PREPROCESS" pos:[8,8] width:744 height:166
     checkbox chkConvertUSD "Convert USD Preview Surface to VRayMtl" pos:[20,30] width:330 height:20 checked:true
     checkbox chkOverrideGlossiness "Override Glossiness" pos:[20,62] width:180 height:20 checked:true
     spinner spnGlossiness "Glossiness:" pos:[210,60] width:150 height:20 range:[0.0,1.0,0.8] type:#float scale:0.01 fieldwidth:60
     checkbox chkOverrideReflection "Override Reflection" pos:[390,62] width:170 height:20 checked:true
     colorPicker cpReflection "Reflection:" pos:[570,58] width:166 height:24 color:(color 255 255 255)
-    label lblPreprocessHint "Constant diffuse only. Texture networks, roughness, metallic, opacity, emission, normal and displacement are ignored." pos:[20,94] width:710 height:18
+    checkbox chkSyncSlotNames "Sync Multi/Sub Slot Names" pos:[20,92] width:250 height:20 checked:true
+    button btnConvertOnly "Convert Materials Only" pos:[520,88] width:216 height:30
+    label lblPreprocessHint "Constant diffuse only. Texture networks, roughness, metallic, opacity, emission, normal and displacement are ignored." pos:[20,132] width:710 height:18
 
-    groupBox gbMaster "MASTER" pos:[8,134] width:744 height:68
-    label lblMaster "Master Object: Not set" pos:[20,156] width:450 height:18
-    button btnSetMaster "Set Master" pos:[520,152] width:104 height:28
-    button btnClearMaster "Clear Master" pos:[632,152] width:104 height:28
+    groupBox gbMaster "MASTER" pos:[8,182] width:744 height:68
+    label lblMaster "Master Object: Not set" pos:[20,204] width:450 height:18
+    button btnSetMaster "Set Master" pos:[520,200] width:104 height:28
+    button btnClearMaster "Clear Master" pos:[632,200] width:104 height:28
 
-    groupBox gbTargets "TARGETS" pos:[8,208] width:278 height:300
-    multiListBox lbTargets "" pos:[18,230] width:258 height:12
-    button btnAddTargets "Add Selected Targets" pos:[18,454] width:124 height:28
-    button btnRemoveTargets "Remove Selected" pos:[148,454] width:128 height:28
-    button btnClearTargets "Clear Targets" pos:[18,488] width:258 height:24
+    groupBox gbTargets "TARGETS" pos:[8,256] width:278 height:300
+    multiListBox lbTargets "" pos:[18,278] width:258 height:12
+    button btnAddTargets "Add Selected Targets" pos:[18,502] width:124 height:28
+    button btnRemoveTargets "Remove Selected" pos:[148,502] width:128 height:28
+    button btnClearTargets "Clear Targets" pos:[18,536] width:258 height:24
 
-    groupBox gbCanonical "CANONICAL MATERIAL TABLE" pos:[294,208] width:458 height:300
-    dotNetControl lvCanonical "System.Windows.Forms.ListView" pos:[304,230] width:438 height:268
+    groupBox gbCanonical "CANONICAL MATERIAL TABLE" pos:[294,256] width:458 height:300
+    dotNetControl lvCanonical "System.Windows.Forms.ListView" pos:[304,278] width:438 height:268
 
-    groupBox gbPreview "TARGET REMAP PREVIEW" pos:[8,516] width:744 height:294
-    label lblPreviewTarget "Target: Select one target from the list" pos:[20,538] width:710 height:18
-    dotNetControl lvRemap "System.Windows.Forms.ListView" pos:[18,560] width:724 height:240
+    groupBox gbPreview "TARGET REMAP PREVIEW" pos:[8,564] width:744 height:294
+    label lblPreviewTarget "Target: Select one target from the list" pos:[20,586] width:710 height:18
+    dotNetControl lvRemap "System.Windows.Forms.ListView" pos:[18,608] width:724 height:240
 
-    button btnAnalyze "Analyze" pos:[8,820] width:366 height:36
-    button btnApply "Normalize / Apply" pos:[386,820] width:366 height:36
+    button btnAnalyze "Analyze" pos:[8,868] width:240 height:36
+    button btnApply "Normalize / Apply" pos:[260,868] width:240 height:36
+    button btnExportReport "Export Report..." pos:[512,868] width:240 height:36
+    checkbox chkAutoExport "Auto Export After Operation" pos:[10,912] width:250 height:20 checked:false
 
-    label lblSummary "MASTER: None | Targets: 0 | Materials: 0 | Matched: 0 | Pending Append: 0" pos:[10,866] width:740 height:18
-    label lblConversionSummary "USD: 0 | Existing VRay: 0 | Unsupported: 0 | Texture Ignored: 0 | Conflicts: 0" pos:[10,888] width:740 height:18
-    label lblStatus "Status: Ready" pos:[10,910] width:740 height:18
+    label lblSummary "MASTER: None | Targets: 0 | Materials: 0 | Matched: 0 | Pending Append: 0" pos:[10,938] width:740 height:18
+    label lblConversionSummary "USD: 0 | Existing VRay: 0 | Unsupported: 0 | Texture Ignored: 0 | Conflicts: 0" pos:[10,960] width:740 height:18
+    label lblStatus "Status: Ready" pos:[10,982] width:740 height:28
 
     local DEBUG_MODE = false
     local masterNode = undefined
@@ -64,24 +68,34 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
     local conversionPlan = #()
     local conversionCache = #()
     local diffuseConflictNames = #()
+    local classConflictNames = #()
     local usdMaterialCount = 0
     local existingVRayCount = 0
     local unsupportedMaterialCount = 0
     local textureIgnoredCount = 0
     local preprocessConflictCount = 0
+    local classConflictCount = 0
     local preprocessErrorText = ""
     local lastApplyConvertedCount = 0
     local lastApplyAppendedCount = 0
+    local lastSkippedCount = 0
+    local lastSyncedSlotCount = 0
+    local lastOperation = #none
+    local lastConversionRows = #()
+    local lastAppendedRows = #()
+    local lastTextureIgnoredNames = #()
+    local lastReportPath = ""
 
     /*
         Canonical row:
-        #(materialID, materialName, materialReference, sourceText, state, sourceNode, slotIndex)
+        #(materialID, materialName, materialReference, sourceText, state, sourceNode, slotIndex,
+          rawClass, effectiveClass, diffuseInfo)
 
         Target analysis:
         #(node, overallStatus, detailText, remapRows, isApplicable)
 
         Remap row:
-        #(oldID, materialName, newID, state, materialReference)
+        #(oldID, materialName, newID, state, materialReference, rawClass, effectiveClass, diffuseInfo)
     */
 
     fn lmnLog level message =
@@ -138,6 +152,14 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
     fn materialClassText materialValue =
     (
         if materialValue == undefined then "Undefined" else classOf materialValue as string
+    )
+
+    fn effectiveMaterialClassText materialValue =
+    (
+        if materialValue != undefined and materialClassText materialValue == "MaxUsdPreviewSurface" and chkConvertUSD.checked then
+            "VRayMtl"
+        else
+            materialClassText materialValue
     )
 
     fn isUSDPreviewMaterial materialValue =
@@ -225,15 +247,25 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         found
     )
 
+    fn isClassConflictName materialName =
+    (
+        local found = false
+        for conflictName in classConflictNames while not found do
+            if exactNameEquals conflictName materialName do found = true
+        found
+    )
+
     fn analyzePreprocess =
     (
         conversionPlan = #()
         diffuseConflictNames = #()
+        classConflictNames = #()
         usdMaterialCount = 0
         existingVRayCount = 0
         unsupportedMaterialCount = 0
         textureIgnoredCount = 0
         preprocessConflictCount = 0
+        classConflictCount = 0
         preprocessErrorText = ""
         collectScopedMaterials()
 
@@ -258,16 +290,25 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
                 local leftMaterial = scopedMaterials[leftIndex]
                 local leftName = safeMaterialName leftMaterial
                 local leftDiffuse = readComparableDiffuse leftMaterial
+                local leftEffectiveClass = effectiveMaterialClassText leftMaterial
 
                 for rightIndex = (leftIndex + 1) to scopedMaterials.count do
                 (
                     local rightMaterial = scopedMaterials[rightIndex]
                     if exactNameEquals leftName (safeMaterialName rightMaterial) do
                     (
-                        local rightDiffuse = readComparableDiffuse rightMaterial
-                        if leftDiffuse[1] and rightDiffuse[1] and not diffuseColorsEqual leftDiffuse[2] rightDiffuse[2] do
+                        local rightEffectiveClass = effectiveMaterialClassText rightMaterial
+                        if leftEffectiveClass != rightEffectiveClass then
                         (
-                            if not isDiffuseConflictName leftName do append diffuseConflictNames leftName
+                            if not isClassConflictName leftName do append classConflictNames leftName
+                        )
+                        else
+                        (
+                            local rightDiffuse = readComparableDiffuse rightMaterial
+                            if leftDiffuse[1] and rightDiffuse[1] and not diffuseColorsEqual leftDiffuse[2] rightDiffuse[2] do
+                            (
+                                if not isDiffuseConflictName leftName do append diffuseConflictNames leftName
+                            )
                         )
                     )
                 )
@@ -275,11 +316,17 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         )
 
         preprocessConflictCount = diffuseConflictNames.count
+        classConflictCount = classConflictNames.count
 
         if chkConvertUSD.checked and usdMaterialCount > 0 and not vrayClassIsAvailable() then
         (
             preprocessErrorText = "ERROR: VRayMtl class is not available. USD conversion cancelled. Scene was not changed."
             setStatus preprocessErrorText
+            false
+        )
+        else if classConflictCount > 0 then
+        (
+            setStatus ("CLASS CONFLICT: " + (classConflictCount as string) + " material name(s) have different effective classes.")
             false
         )
         else if preprocessConflictCount > 0 then
@@ -306,8 +353,10 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
     (
         local result = rowValue[4]
         local materialValue = rowValue[3]
-        if isDiffuseConflictName rowValue[2] then
-            result = "CONFLICT : SAME NAME / DIFFERENT DIFFUSE"
+        if isClassConflictName rowValue[2] then
+            result = "CLASS CONFLICT : SAME NAME / DIFFERENT EFFECTIVE CLASS"
+        else if isDiffuseConflictName rowValue[2] then
+            result = "COLOR CONFLICT : SAME NAME / DIFFERENT DIFFUSE"
         else if materialHasTextureDrivenDiffuse materialValue then
             result += " / TEXTURE IGNORED"
         else if isVRayMaterial materialValue then
@@ -323,7 +372,10 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         local prefix = preprocessMaterialTypeText materialValue
         local result = prefix + " / " + remapRow[4]
         if materialHasTextureDrivenDiffuse materialValue do result += " / TEXTURE IGNORED"
-        if isDiffuseConflictName remapRow[2] do result = "CONFLICT : SAME NAME / DIFFERENT DIFFUSE"
+        if isClassConflictName remapRow[2] then
+            result = "CLASS CONFLICT"
+        else if isDiffuseConflictName remapRow[2] do
+            result = "COLOR CONFLICT"
         result
     )
 
@@ -438,6 +490,73 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         )
     )
 
+    fn captureConversionRowsFromCache =
+    (
+        local rows = #()
+        for cacheRow in conversionCache do
+        (
+            local sourceMaterial = cacheRow[1]
+            local convertedMaterial = cacheRow[2]
+            append rows #(
+                safeMaterialName sourceMaterial,
+                materialClassText sourceMaterial,
+                safeMaterialName convertedMaterial,
+                materialClassText convertedMaterial,
+                readComparableDiffuse convertedMaterial,
+                (if chkOverrideGlossiness.checked then formattedPrint spnGlossiness.value format:".2f" else "OFF"),
+                (if chkOverrideReflection.checked then
+                    ((cpReflection.color.r as integer) as string) + "," +
+                    ((cpReflection.color.g as integer) as string) + "," +
+                    ((cpReflection.color.b as integer) as string)
+                 else "OFF")
+            )
+        )
+        rows
+    )
+
+    fn syncMultiSlotNames materialValue =
+    (
+        local changedCount = 0
+        if isMultiMaterial materialValue do
+        (
+            if materialValue.names.count < materialValue.materialList.count do
+                materialValue.names.count = materialValue.materialList.count
+
+            for slotIndex = 1 to materialValue.materialList.count do
+            (
+                local subMaterial = materialValue.materialList[slotIndex]
+                if subMaterial != undefined do
+                (
+                    local desiredName = safeMaterialName subMaterial
+                    if materialValue.names[slotIndex] != desiredName do
+                    (
+                        materialValue.names[slotIndex] = desiredName
+                        changedCount += 1
+                    )
+                )
+            )
+        )
+        changedCount
+    )
+
+    fn syncRegisteredMultiSlotNames =
+    (
+        if not chkSyncSlotNames.checked then
+            0
+        else
+        (
+            local multiMaterials = #()
+            if isValidStoredNode masterNode and isMultiMaterial masterNode.material do
+                appendUniqueMaterial multiMaterials masterNode.material
+            for nodeValue in targetNodes where isValidStoredNode nodeValue and isMultiMaterial nodeValue.material do
+                appendUniqueMaterial multiMaterials nodeValue.material
+
+            local changedCount = 0
+            for materialValue in multiMaterials do changedCount += syncMultiSlotNames materialValue
+            changedCount
+        )
+    )
+
     fn updatePreprocessControlStates =
     (
         chkOverrideGlossiness.enabled = chkConvertUSD.checked
@@ -468,6 +587,22 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
     fn getLastApplyStats =
     (
         #(lastApplyConvertedCount, lastApplyAppendedCount)
+    )
+
+    fn setExtendedOptions syncSlotNames autoExport =
+    (
+        chkSyncSlotNames.checked = syncSlotNames
+        chkAutoExport.checked = autoExport
+        canonicalRows = #()
+        targetAnalyses = #()
+        analysisReady = false
+        btnApply.enabled = false
+        true
+    )
+
+    fn getLastOperationStats =
+    (
+        #(lastOperation, lastApplyConvertedCount, lastApplyAppendedCount, lastSyncedSlotCount, lastReportPath)
     )
 
     fn cleanStoredNodes =
@@ -680,7 +815,9 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
                         )
 
                         append canonicalRows #(materialID, materialName, subMaterial, stateText,
-                            (if stateText == "MASTER" then #master else #conflict), masterNode, slotIndex)
+                            (if stateText == "MASTER" then #master else #conflict), masterNode, slotIndex,
+                            materialClassText subMaterial, effectiveMaterialClassText subMaterial,
+                            readComparableDiffuse subMaterial)
                     )
                 )
 
@@ -701,7 +838,13 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         local rowIndex = findCanonicalRowByName materialName
         if rowIndex > 0 then
         (
-            #(canonicalRows[rowIndex][1], "MATCH")
+            local matchState = if isClassConflictName materialName then
+                "CLASS CONFLICT"
+            else if isDiffuseConflictName materialName then
+                "COLOR CONFLICT"
+            else
+                "MATCH"
+            #(canonicalRows[rowIndex][1], matchState)
         )
         else
         (
@@ -709,7 +852,9 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
             if newID > 60000 do
                 throw "Cannot append a material because the next Material ID exceeds MAXScript's 60,000 limit."
             append canonicalRows #(newID, materialName, materialReference,
-                ("PENDING APPEND : " + sourceNode.name), #pending, sourceNode, 0)
+                ("PENDING APPEND : " + sourceNode.name), #pending, sourceNode, 0,
+                materialClassText materialReference, effectiveMaterialClassText materialReference,
+                readComparableDiffuse materialReference)
             pendingCount += 1
             #(newID, "PENDING APPEND")
         )
@@ -740,7 +885,9 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
                 else
                 (
                     local canonicalResult = ensureVirtualCanonical materialName materialReference nodeValue
-                    append remapRows #(oldID, materialName, canonicalResult[1], canonicalResult[2], materialReference)
+                    append remapRows #(oldID, materialName, canonicalResult[1], canonicalResult[2], materialReference,
+                        materialClassText materialReference, effectiveMaterialClassText materialReference,
+                        readComparableDiffuse materialReference)
                     if canonicalResult[2] == "MATCH" do matchedCount += 1
                 )
             )
@@ -773,7 +920,9 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
             local remapRows = #()
             local faceIDs = getUniqueFaceIDs nodeValue
             for faceID in faceIDs do
-                append remapRows #(faceID, materialName, canonicalResult[1], canonicalResult[2], materialValue)
+                append remapRows #(faceID, materialName, canonicalResult[1], canonicalResult[2], materialValue,
+                    materialClassText materialValue, effectiveMaterialClassText materialValue,
+                    readComparableDiffuse materialValue)
             if canonicalResult[2] == "MATCH" do matchedCount += 1
             #(nodeValue, "READY", "Ready (single material)", remapRows, true)
         )
@@ -888,7 +1037,7 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
             " | Existing VRay: " + (existingVRayCount as string) +
             " | Unsupported: " + (unsupportedMaterialCount as string) +
             " | Texture Ignored: " + (textureIgnoredCount as string) +
-            " | Conflicts: " + (preprocessConflictCount as string)
+            " | Class/Color Conflicts: " + (classConflictCount as string) + "/" + (preprocessConflictCount as string)
     )
 
     fn refreshAllUI =
@@ -909,12 +1058,15 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         scopedMaterials = #()
         conversionPlan = #()
         diffuseConflictNames = #()
+        classConflictNames = #()
         usdMaterialCount = 0
         existingVRayCount = 0
         unsupportedMaterialCount = 0
         textureIgnoredCount = 0
         preprocessConflictCount = 0
+        classConflictCount = 0
         preprocessErrorText = ""
+        lastSkippedCount = 0
         analysisReady = false
         analysisHasConflict = false
         refreshAllUI()
@@ -985,12 +1137,18 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         true
     )
 
-    fn analyzeAll updateUI:true =
+    fn analyzeAll updateUI:true recordOperation:false =
     (
+        if recordOperation do
+        (
+            lastOperation = #analyze
+            lastSyncedSlotCount = 0
+        )
         cleanStoredNodes()
         targetAnalyses = #()
         matchedCount = 0
         pendingCount = 0
+        lastSkippedCount = 0
         analysisReady = false
 
         local preprocessOK = analyzePreprocess()
@@ -1021,12 +1179,15 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
                 else if analysis[2] == "NO MATERIAL" or analysis[2] == "UNSUPPORTED" then skippedTargets += 1
                 else errorTargets += 1
             )
+            lastSkippedCount = skippedTargets
 
             if readyTargets == 0 do analysisReady = false
             if errorTargets > 0 do analysisReady = false
 
-            if preprocessConflictCount > 0 then
-                setStatus ("CONFLICT: SAME NAME / DIFFERENT DIFFUSE in " + (preprocessConflictCount as string) + " material name(s). Apply is blocked.")
+            if classConflictCount > 0 then
+                setStatus ("CLASS CONFLICT: SAME NAME / DIFFERENT EFFECTIVE CLASS in " + (classConflictCount as string) + " material name(s). Apply is blocked.")
+            else if preprocessConflictCount > 0 then
+                setStatus ("COLOR CONFLICT: SAME NAME / DIFFERENT DIFFUSE in " + (preprocessConflictCount as string) + " material name(s). Apply is blocked.")
             else if not preprocessOK then
                 setStatus (if preprocessErrorText != "" then preprocessErrorText else "ERROR: USD preprocess validation failed. Scene was not changed.")
             else if analysisHasConflict then
@@ -1039,6 +1200,7 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
                 setStatus ("Analyze complete: " + (readyTargets as string) + " ready, " +
                     (skippedTargets as string) + " skipped, " + (pendingCount as string) + " pending append.")
 
+            btnApply.enabled = analysisReady
             if updateUI do refreshAllUI()
             analysisReady
         )
@@ -1109,6 +1271,322 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         verified
     )
 
+    fn formatColorValue colorValue =
+    (
+        if colorValue == undefined then
+            "N/A"
+        else
+            ((colorValue.r as integer) as string) + "," +
+            ((colorValue.g as integer) as string) + "," +
+            ((colorValue.b as integer) as string)
+    )
+
+    fn formatDiffuseInfo diffuseInfo =
+    (
+        if diffuseInfo != undefined and diffuseInfo.count >= 2 and diffuseInfo[1] then
+            formatColorValue diffuseInfo[2]
+        else
+            "N/A"
+    )
+
+    fn operationLabel operationValue =
+    (
+        case operationValue of
+        (
+            #analyze: "ANALYZE"
+            #convertOnly: "CONVERT ONLY"
+            #normalize: "NORMALIZE/APPLY"
+            default: "NONE"
+        )
+    )
+
+    fn operationFilenamePart operationValue =
+    (
+        case operationValue of
+        (
+            #convertOnly: "ConvertOnly"
+            #normalize: "Normalize"
+            default: "Analyze"
+        )
+    )
+
+    fn reportTimestamp filenameSafe:false =
+    (
+        local dateTimeClass = dotNetClass "System.DateTime"
+        if filenameSafe then
+            dateTimeClass.Now.ToString "yyyyMMdd_HHmmss"
+        else
+            dateTimeClass.Now.ToString "yyyy-MM-dd HH:mm:ss"
+    )
+
+    fn sceneDisplayPath =
+    (
+        if maxFileName == "" then "<Unsaved Scene>" else maxFilePath + maxFileName
+    )
+
+    fn reportDefaultPath =
+    (
+        local sceneBase = if maxFileName == "" then "Untitled" else getFilenameFile maxFileName
+        local reportName = sceneBase + "_MaterialNormalize_" + operationFilenamePart lastOperation + "_" +
+            reportTimestamp filenameSafe:true + ".txt"
+        local reportDirectory = if maxFilePath != "" then maxFilePath else getDir #export
+        pathConfig.appendPath reportDirectory reportName
+    )
+
+    fn buildReportText =
+    (
+        local reportText = ""
+        local newLine = "\r\n"
+        local masterName = if isValidStoredNode masterNode then masterNode.name else "None"
+        local predictedConversionCount = if lastOperation == #analyze then conversionPlan.count else lastApplyConvertedCount
+        local appendedDisplayCount = if lastOperation == #normalize then lastApplyAppendedCount else pendingCount
+
+        reportText += "Lunar Material ID Normalizer Report" + newLine
+        reportText += "Tool Version: 1.2" + newLine
+        reportText += "Scene Path: " + sceneDisplayPath() + newLine
+        reportText += "Generated: " + reportTimestamp() + newLine
+        reportText += "Last Operation: " + operationLabel lastOperation + newLine + newLine
+
+        reportText += "[PREPROCESS SETTINGS]" + newLine
+        reportText += "Convert USD -> VRay: " + (if chkConvertUSD.checked then "ON" else "OFF") + newLine
+        reportText += "Override Glossiness: " + (if chkOverrideGlossiness.checked then "ON" else "OFF") + newLine
+        reportText += "Glossiness Value: " + formattedPrint spnGlossiness.value format:".2f" + newLine
+        reportText += "Override Reflection: " + (if chkOverrideReflection.checked then "ON" else "OFF") + newLine
+        reportText += "Reflection RGB: " + formatColorValue cpReflection.color + newLine
+        reportText += "Sync Multi/Sub Slot Names: " + (if chkSyncSlotNames.checked then "ON" else "OFF") + newLine + newLine
+
+        reportText += "[MASTER]" + newLine + masterName + newLine + newLine
+        reportText += "[TARGETS]" + newLine
+        if targetNodes.count == 0 then reportText += "None" + newLine
+        for nodeValue in targetNodes do
+            reportText += (if isValidStoredNode nodeValue then nodeValue.name else "<Invalid Node>") + newLine
+        reportText += newLine
+
+        reportText += "[SUMMARY]" + newLine
+        reportText += "Material Count: " + (canonicalRows.count as string) + newLine
+        reportText += "USD Material Count: " + (usdMaterialCount as string) + newLine
+        reportText += "Existing VRayMtl Count: " + (existingVRayCount as string) + newLine
+        reportText += "Unsupported Count: " + (unsupportedMaterialCount as string) + newLine
+        reportText += "Converted Count: " + (predictedConversionCount as string) + newLine
+        reportText += "Matched Count: " + (matchedCount as string) + newLine
+        reportText += "Pending/Appended Count: " + (appendedDisplayCount as string) + newLine
+        reportText += "Class Conflict Count: " + (classConflictCount as string) + newLine
+        reportText += "Color Conflict Count: " + (preprocessConflictCount as string) + newLine
+        reportText += "Skipped Count: " + (lastSkippedCount as string) + newLine
+        reportText += "Slot Names Updated: " + (lastSyncedSlotCount as string) + newLine + newLine
+
+        reportText += "[CANONICAL MATERIAL TABLE]" + newLine
+        reportText += "ID\tMaterial Name\tRaw Class\tEffective / Final Class\tSource / Status" + newLine
+        for rowValue in canonicalRows do
+            reportText += (rowValue[1] as string) + "\t" + rowValue[2] + "\t" + rowValue[8] + "\t" + rowValue[9] + "\t" + canonicalStatusText rowValue + newLine
+        reportText += newLine
+
+        reportText += "[PER TARGET REMAP TABLE]" + newLine
+        for analysis in targetAnalyses do
+        (
+            reportText += "Target Object: " + (if isValidStoredNode analysis[1] then analysis[1].name else "<Invalid Node>") + newLine
+            reportText += "Old ID\tMaterial Name\tRaw Class\tEffective Class\tNew ID\tStatus" + newLine
+            for remapRow in analysis[4] do
+                reportText += (remapRow[1] as string) + "\t" + remapRow[2] + "\t" + remapRow[6] + "\t" + remapRow[7] + "\t" + (remapRow[3] as string) + "\t" + remapStatusText remapRow + newLine
+            if analysis[4].count == 0 do reportText += "-\t-\t-\t-\t-\t" + analysis[2] + " / " + analysis[3] + newLine
+            reportText += newLine
+        )
+
+        reportText += "[MATERIAL CONVERSION TABLE]" + newLine
+        reportText += "Source Material\tSource Class\tConverted Material\tFinal Class\tDiffuse\tGlossiness Override\tReflection Override" + newLine
+        if lastOperation == #analyze then
+        (
+            for sourceMaterial in conversionPlan do
+                reportText += safeMaterialName sourceMaterial + "\t" + materialClassText sourceMaterial + "\t" + safeMaterialName sourceMaterial + "\tVRayMtl\t" + formatDiffuseInfo (readComparableDiffuse sourceMaterial) + "\t" +
+                    (if chkOverrideGlossiness.checked then formattedPrint spnGlossiness.value format:".2f" else "OFF") + "\t" +
+                    (if chkOverrideReflection.checked then formatColorValue cpReflection.color else "OFF") + newLine
+        )
+        else
+        (
+            for conversionRow in lastConversionRows do
+                reportText += conversionRow[1] + "\t" + conversionRow[2] + "\t" + conversionRow[3] + "\t" + conversionRow[4] + "\t" +
+                    formatDiffuseInfo conversionRow[5] + "\t" + conversionRow[6] + "\t" + conversionRow[7] + newLine
+        )
+        if (if lastOperation == #analyze then conversionPlan.count else lastConversionRows.count) == 0 do reportText += "None" + newLine
+        reportText += newLine
+
+        reportText += "[APPENDED MATERIALS]" + newLine
+        if lastOperation == #normalize then
+        (
+            for rowValue in lastAppendedRows do reportText += (rowValue[1] as string) + "\t" + rowValue[2] + newLine
+            if lastAppendedRows.count == 0 do reportText += "None" + newLine
+        )
+        else
+        (
+            local pendingFound = false
+            for rowValue in canonicalRows where rowValue[5] == #pending do
+            (
+                reportText += (rowValue[1] as string) + "\t" + rowValue[2] + "\tPENDING" + newLine
+                pendingFound = true
+            )
+            if not pendingFound do reportText += "None" + newLine
+        )
+        reportText += newLine
+
+        reportText += "[CONFLICTS / WARNINGS]" + newLine
+        for conflictName in classConflictNames do reportText += "CLASS CONFLICT\t" + conflictName + newLine
+        for conflictName in diffuseConflictNames do reportText += "COLOR CONFLICT\t" + conflictName + newLine
+        for materialValue in scopedMaterials where not isUSDPreviewMaterial materialValue and not isVRayMaterial materialValue do
+            reportText += "UNSUPPORTED / KEEP\t" + safeMaterialName materialValue + "\t" + materialClassText materialValue + newLine
+        for materialValue in scopedMaterials where materialHasTextureDrivenDiffuse materialValue do
+            reportText += "TEXTURE IGNORED\t" + safeMaterialName materialValue + newLine
+        if lastOperation != #analyze do
+        (
+            for materialName in lastTextureIgnoredNames do
+                reportText += "TEXTURE IGNORED DURING CONVERSION\t" + materialName + newLine
+        )
+        for analysis in targetAnalyses where not analysis[5] do
+            reportText += analysis[2] + "\t" + (if isValidStoredNode analysis[1] then analysis[1].name else "<Invalid Node>") + "\t" + analysis[3] + newLine
+        if classConflictNames.count == 0 and diffuseConflictNames.count == 0 and unsupportedMaterialCount == 0 and textureIgnoredCount == 0 and
+            (lastOperation == #analyze or lastTextureIgnoredNames.count == 0) and lastSkippedCount == 0 do
+            reportText += "None" + newLine
+
+        reportText
+    )
+
+    fn exportReportToPath reportPath =
+    (
+        if reportPath == undefined or reportPath == "" then
+            false
+        else
+        (
+            try
+            (
+                local fileClass = dotNetClass "System.IO.File"
+                local utf8Encoding = dotNetObject "System.Text.UTF8Encoding" false
+                fileClass.WriteAllText reportPath (buildReportText()) utf8Encoding
+                lastReportPath = reportPath
+                lmnLog "INFO" ("Report exported: " + reportPath)
+                true
+            )
+            catch
+            (
+                lmnLog "ERROR" ("Report export failed: " + exceptionText())
+                false
+            )
+        )
+    )
+
+    fn exportReportWithDialog =
+    (
+        analyzeAll updateUI:true
+        local reportPath = getSaveFileName caption:"Export Material Normalize Report" filename:reportDefaultPath() types:"Text Report (*.txt)|*.txt|"
+        if reportPath == undefined then
+            false
+        else if exportReportToPath reportPath then
+        (
+            setStatus ("Report exported: " + reportPath)
+            true
+        )
+        else
+        (
+            setStatus "ERROR: Report export failed."
+            false
+        )
+    )
+
+    fn autoExportReport =
+    (
+        if not chkAutoExport.checked then
+            true
+        else
+        (
+            local reportPath = reportDefaultPath()
+            if exportReportToPath reportPath then
+                true
+            else
+            (
+                lmnLog "WARN" "The scene operation succeeded, but automatic report export failed."
+                false
+            )
+        )
+    )
+
+    fn convertMaterialsOnly =
+    (
+        cleanStoredNodes()
+        if not isValidStoredNode masterNode then
+        (
+            setStatus "Set a valid Master object before conversion."
+            false
+        )
+        else if targetNodes.count == 0 then
+        (
+            setStatus "Add at least one Target before conversion."
+            false
+        )
+        else
+        (
+            local preprocessOK = analyzePreprocess()
+            local preprocessValidation = validatePreprocessOptions()
+            if not preprocessOK then
+            (
+                refreshAllUI()
+                false
+            )
+            else if not preprocessValidation[1] then
+            (
+                setStatus preprocessValidation[2]
+                false
+            )
+            else if conversionPlan.count == 0 and not chkSyncSlotNames.checked then
+            (
+                setStatus "No eligible USD material or enabled preprocessing action was found."
+                false
+            )
+            else
+            (
+                local convertedCount = 0
+                local syncedCount = 0
+                local operationFailed = false
+                conversionCache = #()
+                lastTextureIgnoredNames = for materialValue in scopedMaterials where materialHasTextureDrivenDiffuse materialValue collect safeMaterialName materialValue
+
+                undo "Convert USD Materials Only" on
+                (
+                    try
+                    (
+                        convertedCount = applyUSDConversions()
+                        lastConversionRows = captureConversionRowsFromCache()
+                        syncedCount = syncRegisteredMultiSlotNames()
+                    )
+                    catch
+                    (
+                        operationFailed = true
+                        lmnLog "ERROR" ("Convert Materials Only failed: " + exceptionText())
+                    )
+                )
+
+                if operationFailed then
+                (
+                    setStatus "ERROR: Convert Materials Only failed."
+                    false
+                )
+                else
+                (
+                    lastApplyConvertedCount = convertedCount
+                    lastApplyAppendedCount = 0
+                    lastSyncedSlotCount = syncedCount
+                    lastAppendedRows = #()
+                    lastOperation = #convertOnly
+                    redrawViews()
+                    analyzeAll updateUI:true
+                    local resultMessage = "Convert Materials Only complete: " + (convertedCount as string) +
+                        " converted, " + (syncedCount as string) + " slot name(s) updated. No IDs or assignments changed."
+                    setStatus resultMessage
+                    lmnLog "INFO" resultMessage
+                    autoExportReport()
+                    true
+                )
+            )
+        )
+    )
+
     fn applyNormalization =
     (
         if not analyzeAll updateUI:true then
@@ -1132,13 +1610,18 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
                 local normalizedCount = 0
                 local convertedCount = 0
                 local failedCount = 0
+                local syncedCount = 0
                 local applicableAnalyses = for analysis in targetAnalyses where analysis[5] collect analysis
+                lastConversionRows = #()
+                lastAppendedRows = #()
+                lastTextureIgnoredNames = for materialValue in scopedMaterials where materialHasTextureDrivenDiffuse materialValue collect safeMaterialName materialValue
 
                 undo "Convert USD and Normalize Material IDs" on
                 (
                     try
                     (
                         convertedCount = applyUSDConversions()
+                        lastConversionRows = captureConversionRowsFromCache()
 
                         if convertedCount > 0 do
                         (
@@ -1148,7 +1631,9 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
                             applicableAnalyses = for analysis in targetAnalyses where analysis[5] collect analysis
                         )
 
+                        lastAppendedRows = for rowValue in canonicalRows where rowValue[5] == #pending collect rowValue
                         appendedCount = appendPendingMaterials masterMaterial
+                        syncedCount += syncRegisteredMultiSlotNames()
 
                         for analysis in applicableAnalyses do
                         (
@@ -1171,6 +1656,7 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
                                 lmnLog "ERROR" (nodeValue.name + ": " + exceptionText())
                             )
                         )
+                        syncedCount += syncMultiSlotNames masterMaterial
                     )
                     catch
                     (
@@ -1181,6 +1667,7 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
 
                 lastApplyConvertedCount = convertedCount
                 lastApplyAppendedCount = appendedCount
+                lastSyncedSlotCount = syncedCount
                 redrawViews()
                 analyzeAll updateUI:true
 
@@ -1199,7 +1686,13 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
                 if failedCount > 0 do resultMessage += " / " + (failedCount as string) + " failed"
                 setStatus resultMessage
                 lmnLog "INFO" resultMessage
-                failedCount == 0 and normalizedCount > 0
+                local operationSucceeded = failedCount == 0 and normalizedCount > 0
+                if operationSucceeded do
+                (
+                    lastOperation = #normalize
+                    autoExportReport()
+                )
+                operationSucceeded
             )
         )
     )
@@ -1236,6 +1729,9 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
     on cpReflection changed colorValue do
         invalidateAnalysis "Reflection override color changed. Run Analyze again."
 
+    on chkSyncSlotNames changed state do
+        invalidateAnalysis "Slot-name synchronization option changed. Run Analyze again."
+
     on btnSetMaster pressed do captureMasterFromSelection()
 
     on btnClearMaster pressed do
@@ -1253,8 +1749,13 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
     )
 
     on lbTargets selected indexValue do refreshPreview targetIndex:indexValue
-    on btnAnalyze pressed do analyzeAll updateUI:true
+    on btnAnalyze pressed do
+    (
+        analyzeAll updateUI:true recordOperation:true
+    )
+    on btnConvertOnly pressed do convertMaterialsOnly()
     on btnApply pressed do applyNormalization()
+    on btnExportReport pressed do exportReportWithDialog()
 )
 
 createDialog LunarMaterialIDNormalizerRollout style:#(#style_titlebar, #style_sysmenu, #style_minimizebox)

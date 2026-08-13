@@ -11,12 +11,14 @@ Cinema 4D 또는 USD에서 가져온 오브젝트의 `USD Preview Surface`를 �
 
 ## 사용 순서
 
-1. `PREPROCESS`에서 USD 변환과 새 VRayMtl에 적용할 Override를 설정합니다.
+1. `PREPROCESS`에서 USD 변환, 새 VRayMtl Override, Multi/Sub slot-name 동기화를 설정합니다.
 2. 기준 Attach 결과 오브젝트 하나를 선택하고 `Set Master`를 누릅니다.
 3. 나머지 Attach 결과 오브젝트들을 선택하고 `Add Selected Targets`를 누릅니다.
 4. `Analyze`를 눌러 변환 예정 상태, Canonical Material Table과 Target Remap Preview를 확인합니다.
 5. 새 재질은 `PENDING APPEND : <Object>`로 표시됩니다.
-6. 이름/색상 및 Master 이름/ID 충돌이 없고 preview가 올바르면 `Normalize / Apply`를 누릅니다.
+6. 이름/class/color 및 Master 이름/ID 충돌이 없고 preview가 올바르면 `Normalize / Apply`를 누릅니다.
+
+`Convert Materials Only`를 누르면 USD → VRayMtl 변환과 선택적인 slot-name 동기화까지만 실행합니다. Canonical append, face Material ID 변경, Target 정규화, Master material 할당은 수행하지 않으므로 Slate Material Editor에서 변환 결과를 먼저 검사할 수 있습니다.
 
 USD 변환, append, face ID remap, Master material 할당을 포함한 Apply 전체는 `Convert USD and Normalize Material IDs`라는 하나의 Undo 단위로 감쌉니다.
 
@@ -34,6 +36,33 @@ USD 변환, append, face ID remap, Master material 할당을 포함한 Apply 전
 - 동일한 정확한 이름에 서로 다른 diffuse color가 발견되면 `SAME NAME / DIFFERENT DIFFUSE` conflict로 Apply를 차단합니다.
 - V-Ray가 없거나 확인된 VRayMtl property를 사용할 수 없으면 scene을 변경하지 않고 오류를 표시합니다.
 - Analyze는 VRayMtl 생성이나 material reference 교체 없이 계획만 계산합니다.
+
+## Material class 검증
+
+- 정확한 Material Name이 canonical identity인 기존 원칙은 유지됩니다.
+- Raw Class는 현재 scene의 실제 class이고, Effective Class는 활성화된 전처리 이후 예상 class입니다.
+- 변환이 ON이면 `MaxUsdPreviewSurface`의 Effective Class는 `VRayMtl`입니다.
+- 같은 이름의 USD와 VRayMtl은 effective class와 diffuse가 같으면 정상 MATCH입니다.
+- 같은 이름인데 effective class가 다르면 `CLASS CONFLICT`로 Analyze와 Apply를 차단합니다.
+- 같은 이름과 같은 effective class지만 비교 가능한 diffuse가 다르면 `COLOR CONFLICT`로 차단합니다.
+- Canonical key를 `Name + Class`로 변경하지 않으므로 이름 중복이 별도 canonical material로 조용히 분리되지 않습니다.
+
+## Multi/Sub slot 이름 동기화
+
+- `Sync Multi/Sub Slot Names`는 기본 ON입니다.
+- 작업 시점의 `materialList[i].name`을 같은 slot의 `names[i]`에 복사합니다.
+- 실제 face ID는 `materialIDList[i]`에서 별도로 유지하며, slot index와 Material ID가 같다고 가정하지 않습니다.
+- 비어 있는 sub-material slot은 변경하지 않으며 rename callback이나 상시 watcher는 설치하지 않습니다.
+- `Convert Materials Only`와 `Normalize / Apply`의 scene 변경과 함께 동일한 Undo 단위에 포함됩니다.
+
+## 보고서 내보내기
+
+- `Export Report...`는 일반 Save File 대화상자를 열고 UTF-8 `.txt`를 저장합니다.
+- Analyze 후에는 변환/effective class/append/remap의 예측 상태를, scene 변경 후에는 새로 읽은 실제 최종 상태를 기록합니다.
+- 보고서에는 설정, Master/Targets, summary, canonical table, Target별 remap, conversion, appended material, conflict/warning이 포함되며 face별 dump는 하지 않습니다.
+- `Auto Export After Operation`은 기본 OFF입니다. ON이면 성공한 Convert Only 또는 Normalize/Apply가 UI를 refresh한 뒤 보고서를 저장합니다.
+- 저장된 scene은 scene 폴더, 미저장 scene은 3ds Max export 폴더를 자동 보고서 위치로 사용합니다.
+- 기본 파일명은 `<SceneName>_MaterialNormalize_<Operation>_<YYYYMMDD_HHMMSS>.txt` 형식입니다.
 
 현재 설치 환경에서 확인해 사용하는 property는 USD의 `diffuseColor`, `diffuseColor_map`과 VRayMtl의 `Diffuse`, `Reflection`, `reflection_glossiness`, `brdf_useRoughness`입니다. Apply 직전에는 해당 class와 property를 다시 검증합니다.
 
@@ -76,9 +105,9 @@ USD 변환, append, face ID remap, Master material 할당을 포함한 Apply 전
 
 ## 자동 검증
 
-`tests/LunarMaterialIDNormalizer_smoke.ms`를 Autodesk 3ds Max 2026.3.3 Batch에서 실행해 69개 검사가 통과했습니다. 기존 정규화 회귀 범위에 더해 USD 기본 변환, 두 Override의 적용 범위와 OFF 기본값 보존, shared reference cache, Multi/Sub container/ID 보존, diffuse conflict 차단, Convert OFF, texture 무시, USD 변환까지 포함한 한 번의 Undo 복원을 검증합니다.
+`tests/LunarMaterialIDNormalizer_smoke.ms`를 Autodesk 3ds Max 2026.3.3 Batch에서 실행해 87개 검사가 통과했습니다. 기존 정규화 회귀 범위에 더해 USD 기본 변환, 두 Override의 적용 범위와 OFF 기본값 보존, shared reference cache, Multi/Sub container/ID 보존, class/color conflict 차단, Convert OFF, texture 무시, Convert Materials Only의 비정규화 보장과 Undo, slot-name sync, 한·일 문자가 포함된 UTF-8 보고서를 검증합니다.
 
-일반 3ds Max UI에서의 실제 클릭 흐름과 제작용 renderer/plugin material은 별도의 수동 확인 대상입니다.
+일반 3ds Max UI에서의 Save File 대화상자 클릭 흐름은 별도의 수동 확인 대상입니다. 보고서 생성 함수와 UTF-8 파일 내용은 Batch에서 검증했습니다.
 
 ## 간단 테스트 절차
 

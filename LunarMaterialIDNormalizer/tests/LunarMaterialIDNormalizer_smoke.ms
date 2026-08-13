@@ -68,6 +68,13 @@ fn lmnMakeVRay materialName =
     result
 )
 
+fn lmnMakePhysical materialName =
+(
+    local result = execute "PhysicalMaterial()"
+    result.name = materialName
+    result
+)
+
 fn lmnMakePoly nodeName materialValue faceIDs =
 (
     local nodeValue = box name:nodeName
@@ -429,6 +436,91 @@ try
     max undo
     lmnAssert (masterUsdMatP.materialList.count == oldMasterCountP and masterUsdMatP.materialList[1] == usdMasterP) "USD P One Undo restores Master USD reference and removes append"
     lmnAssert (targetUsdP.material == oldTargetMatP and oldTargetMatP.materialList[1] == usdTargetP and lmnArrayEquals (lmnFaceIDs targetUsdP) oldFacesP) "USD P One Undo restores Target USD reference, container, and face IDs"
+
+    -- Effective class validation: USD becomes VRayMtl when conversion is enabled.
+    masterVRayQ = lmnMakeVRay "Body_01"
+    masterVRayQ.Diffuse = color 120 80 40
+    targetUsdQ = lmnMakeUSD "Body_01" (color 120 80 40)
+    masterClassMatQ = lmnMakeMultiFromRefs #(masterVRayQ) #(1)
+    targetClassMatQ = lmnMakeMultiFromRefs #(targetUsdQ) #(7)
+    masterClassQ = lmnMakePoly "Class_Master_Q" masterClassMatQ #(1,1,1,1,1,1)
+    targetClassQ = lmnMakePoly "Class_Target_Q" targetClassMatQ #(7,7,7,7,7,7)
+    LunarMaterialIDNormalizerRollout.setPreprocessOptions true false 0.8 false (color 255 255 255)
+    LunarMaterialIDNormalizerRollout.setExtendedOptions true false
+    lmnPrepare masterClassQ #(targetClassQ)
+    lmnAssert (LunarMaterialIDNormalizerRollout.analyzeAll updateUI:false) "Class Q USD and VRay with the same effective class do not conflict"
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyNormalization()) "Class Q compatible effective classes normalize successfully"
+
+    -- Same name with an unsupported effective class is a class conflict.
+    masterVRayR = lmnMakeVRay "Body_Class_Conflict"
+    targetPhysicalR = lmnMakePhysical "Body_Class_Conflict"
+    masterClassMatR = lmnMakeMultiFromRefs #(masterVRayR) #(1)
+    targetClassMatR = lmnMakeMultiFromRefs #(targetPhysicalR) #(7)
+    masterClassR = lmnMakePoly "Class_Master_R" masterClassMatR #(1,1,1,1,1,1)
+    targetClassR = lmnMakePoly "Class_Target_R" targetClassMatR #(7,7,7,7,7,7)
+    lmnPrepare masterClassR #(targetClassR)
+    lmnAssert (not LunarMaterialIDNormalizerRollout.analyzeAll updateUI:false) "Class R same name with different effective classes blocks Analyze readiness"
+    lmnAssert (not LunarMaterialIDNormalizerRollout.applyNormalization()) "Class R class conflict blocks Normalize Apply"
+    lmnAssert (targetClassR.material == targetClassMatR and targetClassMatR.materialList[1] == targetPhysicalR) "Class R blocked operation leaves unsupported material unchanged"
+
+    -- Convert Materials Only changes material references and slot labels, but no IDs or assignments.
+    usdMasterS = lmnMakeUSD "변환_마스터" (color 70 80 90)
+    usdTargetS = lmnMakeUSD "変換_ターゲット" (color 20 30 40)
+    masterConvertMatS = lmnMakeMultiFromRefs #(usdMasterS) #(1)
+    targetConvertMatS = lmnMakeMultiFromRefs #(usdTargetS) #(13)
+    masterConvertMatS.names[1] = "(1)"
+    targetConvertMatS.names[1] = "(13)"
+    masterConvertS = lmnMakePoly "ConvertOnly_Master_S" masterConvertMatS #(1,1,1,1,1,1)
+    targetConvertS = lmnMakePoly "ConvertOnly_Target_S" targetConvertMatS #(13,13,13,13,13,13)
+    oldFacesS = lmnFaceIDs targetConvertS
+    oldMasterCountS = masterConvertMatS.materialList.count
+    LunarMaterialIDNormalizerRollout.setPreprocessOptions true true 0.44 true (color 150 160 170)
+    LunarMaterialIDNormalizerRollout.setExtendedOptions true false
+    lmnPrepare masterConvertS #(targetConvertS)
+    clearUndoBuffer()
+    lmnAssert (LunarMaterialIDNormalizerRollout.convertMaterialsOnly()) "Convert Only S succeeds"
+    lmnAssert ((classOf masterConvertMatS.materialList[1] as string) == "VRayMtl" and (classOf targetConvertMatS.materialList[1] as string) == "VRayMtl") "Convert Only S converts registered USD materials"
+    lmnAssert (masterConvertMatS.materialList.count == oldMasterCountS and targetConvertS.material == targetConvertMatS) "Convert Only S performs no append or Master assignment"
+    lmnAssert (lmnArrayEquals (lmnFaceIDs targetConvertS) oldFacesS) "Convert Only S leaves face Material IDs unchanged"
+    lmnAssert (masterConvertMatS.names[1] == "변환_마스터" and targetConvertMatS.names[1] == "変換_ターゲット") "Convert Only S synchronizes slot labels by slot index"
+    convertStatsS = LunarMaterialIDNormalizerRollout.getLastOperationStats()
+    lmnAssert (convertStatsS[1] == #convertOnly and convertStatsS[2] == 2 and convertStatsS[3] == 0) "Convert Only S reports conversion with zero appended materials"
+    max undo
+    lmnAssert (masterConvertMatS.materialList[1] == usdMasterS and targetConvertMatS.materialList[1] == usdTargetS and masterConvertMatS.names[1] == "(1)" and targetConvertMatS.names[1] == "(13)") "Convert Only S one Undo restores USD references and slot labels"
+
+    -- Normalize syncs existing and newly appended Master slots.
+    masterSyncMatT = lmnMakeMulti #("Sync_A") #(1)
+    targetSyncMatT = lmnMakeMulti #("Sync_D") #(9)
+    masterSyncMatT.names[1] = "(1)"
+    targetSyncMatT.names[1] = "(9)"
+    masterSyncT = lmnMakePoly "Sync_Master_T" masterSyncMatT #(1,1,1,1,1,1)
+    targetSyncT = lmnMakePoly "Sync_Target_T" targetSyncMatT #(9,9,9,9,9,9)
+    LunarMaterialIDNormalizerRollout.setPreprocessOptions false false 0.8 false (color 255 255 255)
+    LunarMaterialIDNormalizerRollout.setExtendedOptions true false
+    lmnPrepare masterSyncT #(targetSyncT)
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyNormalization()) "Slot Sync T Normalize Apply succeeds"
+    syncDSlotT = lmnFindMaterialSlot masterSyncMatT "Sync_D"
+    lmnAssert (masterSyncMatT.names[1] == "Sync_A" and syncDSlotT > 0 and masterSyncMatT.names[syncDSlotT] == "Sync_D") "Slot Sync T updates existing and appended Master slot names"
+
+    -- UTF-8 report exports predicted raw/effective class data and non-ASCII names.
+    reportPathU = "C:\\tmp\\lmn-unicode-material-report.txt"
+    try (deleteFile reportPathU) catch()
+    masterReportVRayU = lmnMakeVRay "벽_한국어_材質"
+    masterReportVRayU.Diffuse = color 12 34 56
+    targetReportUsdU = lmnMakeUSD "벽_한국어_材質" (color 12 34 56)
+    masterReportMatU = lmnMakeMultiFromRefs #(masterReportVRayU) #(1)
+    targetReportMatU = lmnMakeMultiFromRefs #(targetReportUsdU) #(7)
+    masterReportU = lmnMakePoly "마스터_오브젝트" masterReportMatU #(1,1,1,1,1,1)
+    targetReportU = lmnMakePoly "ターゲット_오브젝트" targetReportMatU #(7,7,7,7,7,7)
+    LunarMaterialIDNormalizerRollout.setPreprocessOptions true true 0.4 true (color 100 110 120)
+    LunarMaterialIDNormalizerRollout.setExtendedOptions true false
+    lmnPrepare masterReportU #(targetReportU)
+    lmnAssert (LunarMaterialIDNormalizerRollout.analyzeAll updateUI:false recordOperation:true) "Report U Analyze succeeds"
+    lmnAssert (LunarMaterialIDNormalizerRollout.exportReportToPath reportPathU) "Report U UTF-8 export succeeds"
+    reportTextU = (dotNetClass "System.IO.File").ReadAllText reportPathU
+    lmnAssert ((findString reportTextU "Last Operation: ANALYZE") != undefined and (findString reportTextU "MaxUsdPreviewSurface") != undefined and (findString reportTextU "VRayMtl") != undefined) "Report U contains operation and raw/effective classes"
+    lmnAssert ((findString reportTextU "벽_한국어_材質") != undefined and (findString reportTextU "ターゲット_오브젝트") != undefined) "Report U preserves Korean and Japanese names"
+    try (deleteFile reportPathU) catch()
 
     -- One Undo reverses append, face remap, and Target material assignment together.
     masterMatK = lmnMakeMulti #("A") #(1)
