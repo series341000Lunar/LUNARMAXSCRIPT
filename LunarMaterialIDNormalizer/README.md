@@ -1,4 +1,6 @@
-# Lunar Material ID Normalizer
+# Lunar Material ID Normalizer MK1
+
+[한국어](README.md) · [Català](README.ca.md)
 
 Cinema 4D 또는 USD에서 가져온 오브젝트의 `USD Preview Surface`를 단순한 `VRayMtl`로 전처리하고, 서로 달라진 Multi/Sub-Object Material ID 순서와 Editable Poly face Material ID를 하나의 Master 기준으로 정규화하는 3ds Max MAXScript Utility입니다.
 
@@ -18,7 +20,7 @@ Cinema 4D 또는 USD에서 가져온 오브젝트의 `USD Preview Surface`를 �
 5. 새 재질은 `PENDING APPEND : <Object>`로 표시됩니다.
 6. 이름/class/color 및 Master 이름/ID 충돌이 없고 preview가 올바르면 `Normalize / Apply`를 누릅니다.
 
-`Convert Materials Only`를 누르면 USD → VRayMtl 변환과 선택적인 slot-name 동기화까지만 실행합니다. Canonical append, face Material ID 변경, Target 정규화, Master material 할당은 수행하지 않으므로 Slate Material Editor에서 변환 결과를 먼저 검사할 수 있습니다.
+`Convert Materials Only`는 Master/Target 등록과 독립적입니다. 버튼을 누르는 순간의 현재 scene selection만 읽어 USD → VRayMtl 변환과 선택적인 slot-name 동기화를 실행합니다. Canonical append, face Material ID 변경, Target 정규화, Master material 할당은 수행하지 않으므로 Slate Material Editor에서 변환 결과를 먼저 검사할 수 있습니다. 선택된 객체가 없으면 scene을 변경하지 않고 `ERROR: Select one or more objects to convert.`를 표시합니다.
 
 USD 변환, append, face ID remap, Master material 할당을 포함한 Apply 전체는 `Convert USD and Normalize Material IDs`라는 하나의 Undo 단위로 감쌉니다.
 
@@ -58,11 +60,22 @@ USD 변환, append, face ID remap, Master material 할당을 포함한 Apply 전
 ## 보고서 내보내기
 
 - `Export Report...`는 일반 Save File 대화상자를 열고 UTF-8 `.txt`를 저장합니다.
+- 새 보고서는 `Report Format Version: 1`을 기록합니다.
 - Analyze 후에는 변환/effective class/append/remap의 예측 상태를, scene 변경 후에는 새로 읽은 실제 최종 상태를 기록합니다.
 - 보고서에는 설정, Master/Targets, summary, canonical table, Target별 remap, conversion, appended material, conflict/warning이 포함되며 face별 dump는 하지 않습니다.
 - `Auto Export After Operation`은 기본 OFF입니다. ON이면 성공한 Convert Only 또는 Normalize/Apply가 UI를 refresh한 뒤 보고서를 저장합니다.
 - 저장된 scene은 scene 폴더, 미저장 scene은 3ds Max export 폴더를 자동 보고서 위치로 사용합니다.
 - 기본 파일명은 `<SceneName>_MaterialNormalize_<Operation>_<YYYYMMDD_HHMMSS>.txt` 형식입니다.
+
+## 보고서 불러오기
+
+- `Load Report...`는 일반 Open File 대화상자에서 UTF-8 `.txt` 보고서를 선택합니다. Cancel은 상태나 장면을 변경하지 않습니다.
+- 첫 번째 의미 있는 줄이 정확히 `Lunar Material ID Normalizer Report`인 파일만 받습니다.
+- `Report Format Version: 1` 보고서와, 해당 줄은 없지만 기존 섹션을 인식할 수 있는 legacy 보고서를 format 1로 읽습니다.
+- CRLF/LF 줄바꿈과 명시적 `[SECTION]` 헤더, 탭 구분 표를 파싱합니다. 누락된 선택 섹션, 잘린 행, 잘못된 정수는 가능한 값을 문자열로 유지하고 `PARSER WARNING`으로 표시합니다.
+- 불러온 내용은 별도의 modeless `LOADED REPORT — READ ONLY` 뷰어에서 Summary, Canonical Materials, Target Remap, Conversions, Appended, Conflicts / Warnings 탭으로 확인합니다.
+- Target Remap 탭에서는 보고서에 저장된 Target을 선택할 수 있고, `Open Another Report...`와 `Close`를 사용할 수 있습니다.
+- 불러온 snapshot은 문자열과 값 배열만 보관합니다. scene node를 찾거나 참조하지 않으며 현재 selection, Master/Targets, Analyze, `Convert Materials Only`, `Normalize / Apply`에 영향을 주지 않습니다.
 
 현재 설치 환경에서 확인해 사용하는 property는 USD의 `diffuseColor`, `diffuseColor_map`과 VRayMtl의 `Diffuse`, `Reflection`, `reflection_glossiness`, `brdf_useRoughness`입니다. Apply 직전에는 해당 class와 property를 다시 검증합니다.
 
@@ -105,9 +118,11 @@ USD 변환, append, face ID remap, Master material 할당을 포함한 Apply 전
 
 ## 자동 검증
 
-`tests/LunarMaterialIDNormalizer_smoke.ms`를 Autodesk 3ds Max 2026.3.3 Batch에서 실행해 87개 검사가 통과했습니다. 기존 정규화 회귀 범위에 더해 USD 기본 변환, 두 Override의 적용 범위와 OFF 기본값 보존, shared reference cache, Multi/Sub container/ID 보존, class/color conflict 차단, Convert OFF, texture 무시, Convert Materials Only의 비정규화 보장과 Undo, slot-name sync, 한·일 문자가 포함된 UTF-8 보고서를 검증합니다.
+`tests/LunarMaterialIDNormalizer_smoke.ms`를 Autodesk 3ds Max 2026.3.3 Batch에서 실행해 115개 검사가 통과했습니다. 기존 정규화 회귀 범위에 더해 USD 기본 변환, 두 Override의 적용 범위와 OFF 기본값 보존, shared reference cache, Multi/Sub container/ID 보존, class/color conflict 차단, Convert OFF, texture 무시, selection 기반 Convert Materials Only의 Master/Target 독립성·다중 선택·기존 VRay 보호·비정규화 보장·Undo, slot-name sync, report seed 경로와 한·일 문자가 포함된 UTF-8 보고서, format-version/CRLF/LF/legacy/malformed/optional-section 파싱, 관련 없는 파일 거부, load snapshot과 Analyze/Convert Only/Normalize의 독립성을 검증합니다.
 
-일반 3ds Max UI에서의 Save File 대화상자 클릭 흐름은 별도의 수동 확인 대상입니다. 보고서 생성 함수와 UTF-8 파일 내용은 Batch에서 검증했습니다.
+3ds Max GUI probe에서 Save File 대화상자와 Load Report Open File 대화상자의 실제 열림, Load Cancel의 무동작 처리, modeless 읽기 전용 뷰어 표시를 확인했습니다. 보고서 생성 함수와 UTF-8 파일 내용은 Batch에서 검증했습니다.
+
+이 버전은 위 회귀 범위를 기준으로 동결한 MK1입니다. 후속 실험 기능은 MK1의 검증된 동작과 분리해서 다루어야 합니다.
 
 ## 간단 테스트 절차
 

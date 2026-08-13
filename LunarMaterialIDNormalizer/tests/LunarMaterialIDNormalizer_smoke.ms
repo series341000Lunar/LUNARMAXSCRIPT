@@ -112,6 +112,14 @@ fn lmnArrayEquals leftValues rightValues =
     equalValues
 )
 
+fn lmnPairValue pairs keyValue =
+(
+    local result = ""
+    for pairValue in pairs while result == "" do
+        if pairValue.count >= 2 and pairValue[1] == keyValue do result = pairValue[2]
+    result
+)
+
 fn lmnPointArraysEqual leftValues rightValues =
 (
     local equalValues = leftValues.count == rightValues.count
@@ -476,10 +484,12 @@ try
     oldMasterCountS = masterConvertMatS.materialList.count
     LunarMaterialIDNormalizerRollout.setPreprocessOptions true true 0.44 true (color 150 160 170)
     LunarMaterialIDNormalizerRollout.setExtendedOptions true false
-    lmnPrepare masterConvertS #(targetConvertS)
+    LunarMaterialIDNormalizerRollout.clearMasterNode()
+    LunarMaterialIDNormalizerRollout.clearTargetNodes()
+    select #(masterConvertS, targetConvertS)
     clearUndoBuffer()
-    lmnAssert (LunarMaterialIDNormalizerRollout.convertMaterialsOnly()) "Convert Only S succeeds"
-    lmnAssert ((classOf masterConvertMatS.materialList[1] as string) == "VRayMtl" and (classOf targetConvertMatS.materialList[1] as string) == "VRayMtl") "Convert Only S converts registered USD materials"
+    lmnAssert (LunarMaterialIDNormalizerRollout.convertMaterialsOnly()) "Convert Only S succeeds without Master or Targets"
+    lmnAssert ((classOf masterConvertMatS.materialList[1] as string) == "VRayMtl" and (classOf targetConvertMatS.materialList[1] as string) == "VRayMtl") "Convert Only S converts all selected USD materials"
     lmnAssert (masterConvertMatS.materialList.count == oldMasterCountS and targetConvertS.material == targetConvertMatS) "Convert Only S performs no append or Master assignment"
     lmnAssert (lmnArrayEquals (lmnFaceIDs targetConvertS) oldFacesS) "Convert Only S leaves face Material IDs unchanged"
     lmnAssert (masterConvertMatS.names[1] == "변환_마스터" and targetConvertMatS.names[1] == "変換_ターゲット") "Convert Only S synchronizes slot labels by slot index"
@@ -487,6 +497,33 @@ try
     lmnAssert (convertStatsS[1] == #convertOnly and convertStatsS[2] == 2 and convertStatsS[3] == 0) "Convert Only S reports conversion with zero appended materials"
     max undo
     lmnAssert (masterConvertMatS.materialList[1] == usdMasterS and targetConvertMatS.materialList[1] == usdTargetS and masterConvertMatS.names[1] == "(1)" and targetConvertMatS.names[1] == "(13)") "Convert Only S one Undo restores USD references and slot labels"
+
+    -- An existing Master does not control selection-based Convert Only; existing VRayMtl is untouched.
+    registeredUsdV = lmnMakeUSD "Registered_Master_Keep" (color 5 15 25)
+    registeredMatV = lmnMakeMultiFromRefs #(registeredUsdV) #(1)
+    registeredMasterV = lmnMakePoly "Registered_Master_V" registeredMatV #(1,1,1,1,1,1)
+    selectedUsdV = lmnMakeUSD "Selected_USD_V" (color 35 45 55)
+    selectedVRayV = lmnMakeVRay "Selected_Existing_VRay_V"
+    selectedVRayV.Diffuse = color 65 75 85
+    selectedMatV = lmnMakeMultiFromRefs #(selectedUsdV, selectedVRayV) #(4, 21)
+    selectedMatV.names[1] = "(4)"
+    selectedMatV.names[2] = "(21)"
+    selectedNodeV = lmnMakePoly "Selected_Unrelated_V" selectedMatV #(4,4,4,21,21,21)
+    oldFacesV = lmnFaceIDs selectedNodeV
+    LunarMaterialIDNormalizerRollout.clearTargetNodes()
+    LunarMaterialIDNormalizerRollout.setMasterNode registeredMasterV
+    select selectedNodeV
+    lmnAssert (LunarMaterialIDNormalizerRollout.convertMaterialsOnly()) "Convert Only V uses current selection while a different Master is registered"
+    lmnAssert (registeredMatV.materialList[1] == registeredUsdV and (classOf registeredUsdV as string) == "MaxUsdPreviewSurface") "Convert Only V does not use or modify registered Master scope"
+    lmnAssert ((classOf selectedMatV.materialList[1] as string) == "VRayMtl" and selectedMatV.materialList[2] == selectedVRayV and lmnColorsEqual selectedVRayV.Diffuse (color 65 75 85)) "Convert Only V converts selected USD and keeps existing VRayMtl untouched"
+    lmnAssert (lmnArrayEquals (lmnFaceIDs selectedNodeV) oldFacesV and selectedMatV.names[1] == "Selected_USD_V" and selectedMatV.names[2] == "Selected_Existing_VRay_V") "Convert Only V preserves IDs and synchronizes selected Multi/Sub slot names"
+
+    -- No selection returns a friendly error and makes no material change.
+    selectedMaterialBeforeNoSelectionV = selectedNodeV.material
+    selectedFirstBeforeNoSelectionV = selectedMatV.materialList[1]
+    clearSelection()
+    lmnAssert (not LunarMaterialIDNormalizerRollout.convertMaterialsOnly()) "Convert Only no-selection request is rejected"
+    lmnAssert (selectedNodeV.material == selectedMaterialBeforeNoSelectionV and selectedMatV.materialList[1] == selectedFirstBeforeNoSelectionV) "Convert Only no-selection request changes no scene material"
 
     -- Normalize syncs existing and newly appended Master slots.
     masterSyncMatT = lmnMakeMulti #("Sync_A") #(1)
@@ -516,10 +553,72 @@ try
     LunarMaterialIDNormalizerRollout.setExtendedOptions true false
     lmnPrepare masterReportU #(targetReportU)
     lmnAssert (LunarMaterialIDNormalizerRollout.analyzeAll updateUI:false recordOperation:true) "Report U Analyze succeeds"
+    defaultReportPathU = LunarMaterialIDNormalizerRollout.reportDefaultPath()
+    lmnAssert (classOf defaultReportPathU == String and LunarMaterialIDNormalizerRollout.isValidReportSeedPath defaultReportPathU) "Report U default Save-dialog seed is a valid String in an existing directory"
     lmnAssert (LunarMaterialIDNormalizerRollout.exportReportToPath reportPathU) "Report U UTF-8 export succeeds"
     reportTextU = (dotNetClass "System.IO.File").ReadAllText reportPathU
     lmnAssert ((findString reportTextU "Last Operation: ANALYZE") != undefined and (findString reportTextU "MaxUsdPreviewSurface") != undefined and (findString reportTextU "VRayMtl") != undefined) "Report U contains operation and raw/effective classes"
     lmnAssert ((findString reportTextU "벽_한국어_材質") != undefined and (findString reportTextU "ターゲット_오브젝트") != undefined) "Report U preserves Korean and Japanese names"
+    lmnAssert ((findString reportTextU "Report Format Version: 1") != undefined) "Report U declares report format version 1"
+
+    -- Report loader parses exported, LF-only, legacy, malformed, and unrelated inputs without scene coupling.
+    reportTargetMaterialBeforeLoadU = targetReportU.material
+    reportTargetFacesBeforeLoadU = lmnFaceIDs targetReportU
+    reportSelectionBeforeLoadU = for nodeValue in selection collect nodeValue
+    lmnAssert (LunarMaterialIDNormalizerRollout.loadReportFromPath reportPathU showViewer:false showErrors:false) "Load Report U loads the exported UTF-8 report"
+    loadedSnapshotU = LunarMaterialIDNormalizerRollout.getLoadedReportSnapshot()
+    lmnAssert (loadedSnapshotU != undefined and loadedSnapshotU[1] == "1" and lmnPairValue loadedSnapshotU[2] "Tool Version" == "MK1") "Load Report U preserves version metadata"
+    lmnAssert (loadedSnapshotU[7].count > 0 and loadedSnapshotU[7][1][2] == "벽_한국어_材質" and loadedSnapshotU[8].count == 1 and loadedSnapshotU[8][1][1] == "ターゲット_오브젝트") "Load Report U preserves Unicode canonical and target values"
+    lmnAssert (targetReportU.material == reportTargetMaterialBeforeLoadU and lmnArrayEquals (lmnFaceIDs targetReportU) reportTargetFacesBeforeLoadU and lmnArrayEquals (for nodeValue in selection collect nodeValue) reportSelectionBeforeLoadU) "Load Report U changes no scene material, face ID, or selection"
+
+    loadedConvertUsdU = lmnMakeUSD "Loaded_Convert_Only_U" (color 31 41 51)
+    loadedConvertMatU = lmnMakeMultiFromRefs #(loadedConvertUsdU) #(17)
+    loadedConvertNodeU = lmnMakePoly "Loaded_Convert_Node_U" loadedConvertMatU #(17,17,17,17,17,17)
+    loadedConvertFacesU = lmnFaceIDs loadedConvertNodeU
+    select loadedConvertNodeU
+    lmnAssert (LunarMaterialIDNormalizerRollout.convertMaterialsOnly()) "Load Report U does not block selection-based Convert Materials Only"
+    lmnAssert ((classOf loadedConvertMatU.materialList[1] as string) == "VRayMtl" and lmnArrayEquals (lmnFaceIDs loadedConvertNodeU) loadedConvertFacesU) "Load Report U Convert Only converts selection without normalizing its face IDs"
+    loadedSnapshotAfterConvertU = LunarMaterialIDNormalizerRollout.getLoadedReportSnapshot()
+    lmnAssert (loadedSnapshotAfterConvertU[14] == reportPathU and masterReportU.material == masterReportMatU and targetReportU.material == reportTargetMaterialBeforeLoadU) "Load Report U Convert Only preserves the loaded snapshot and registered normalization scope"
+
+    lfOnlyResultU = LunarMaterialIDNormalizerRollout.parseReportText (substituteString reportTextU "\r\n" "\n")
+    lmnAssert (lfOnlyResultU[1] and lfOnlyResultU[3][7].count == loadedSnapshotU[7].count) "Load Report U accepts LF-only section and table formatting"
+
+    legacyReportTextU = substituteString reportTextU "Report Format Version: 1\r\n" ""
+    legacyResultU = LunarMaterialIDNormalizerRollout.parseReportText legacyReportTextU
+    lmnAssert (legacyResultU[1] and legacyResultU[3][1] == "1" and legacyResultU[3][12].count > 0) "Load Report U accepts a recognizable legacy report as format 1"
+
+    unrelatedResultU = LunarMaterialIDNormalizerRollout.parseReportText "Unrelated material notes\n[SUMMARY]\nNothing: here"
+    emptyResultU = LunarMaterialIDNormalizerRollout.parseReportText " \r\n\t"
+    lmnAssert (not unrelatedResultU[1] and not emptyResultU[1]) "Load Report U rejects unrelated and empty text cleanly"
+
+    headerOnlyResultU = LunarMaterialIDNormalizerRollout.parseReportText "Lunar Material ID Normalizer Report\nTool Version: MK1\n"
+    unsupportedResultU = LunarMaterialIDNormalizerRollout.parseReportText "Lunar Material ID Normalizer Report\nReport Format Version: 9\n[SUMMARY]\nMaterial Count: 0\n"
+    lmnAssert (not headerOnlyResultU[1] and not unsupportedResultU[1]) "Load Report U rejects unrecognizable truncation and unsupported versions"
+
+    malformedReportTextU = "\nLunar Material ID Normalizer Report\nTool Version: MK1\nReport Format Version: 1\n[SUMMARY]\nMaterial Count: not-an-integer\n[CANONICAL MATERIAL TABLE]\nID\tMaterial Name\tRaw Class\tEffective / Final Class\tSource / Status\nabc\t재질_오류\tVRayMtl\n[APPENDED MATERIALS]\nnot-id\t追加_材質\n"
+    malformedResultU = LunarMaterialIDNormalizerRollout.parseReportText malformedReportTextU
+    lmnAssert (malformedResultU[1] and malformedResultU[3][7].count == 1 and malformedResultU[3][7][1][2] == "재질_오류") "Load Report U keeps a malformed Unicode row as a read-only value"
+    lmnAssert (malformedResultU[3][12].count >= 3) "Load Report U records malformed columns and invalid integers as parser warnings"
+
+    truncatedOptionalResultU = LunarMaterialIDNormalizerRollout.parseReportText "Lunar Material ID Normalizer Report\nTool Version: MK1\n[SUMMARY]\nMaterial Count: 2\n[CONFLICTS / WARNINGS]\n"
+    lmnAssert (truncatedOptionalResultU[1] and truncatedOptionalResultU[3][7].count == 0 and truncatedOptionalResultU[3][9].count == 0) "Load Report U tolerates missing optional sections"
+
+    invalidReportPathU = "C:\\tmp\\lmn-unrelated-report.txt"
+    try (deleteFile invalidReportPathU) catch()
+    (dotNetClass "System.IO.File").WriteAllText invalidReportPathU "Not an LMN report" (dotNetObject "System.Text.UTF8Encoding" false)
+    loadedPathBeforeInvalidU = loadedSnapshotU[14]
+    lmnAssert (not LunarMaterialIDNormalizerRollout.loadReportFromPath invalidReportPathU showViewer:false showErrors:false) "Load Report U path loader rejects an unrelated file without throwing"
+    loadedSnapshotAfterInvalidU = LunarMaterialIDNormalizerRollout.getLoadedReportSnapshot()
+    lmnAssert (loadedSnapshotAfterInvalidU[14] == loadedPathBeforeInvalidU) "Load Report U failed load preserves the prior read-only snapshot"
+    try (deleteFile invalidReportPathU) catch()
+
+    -- Loading is independent from live Analyze and Normalize state.
+    lmnAssert (LunarMaterialIDNormalizerRollout.analyzeAll updateUI:false recordOperation:true) "Load Report U does not disturb registered Master and Targets for Analyze"
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyNormalization()) "Load Report U does not disturb Normalize Apply"
+    lmnAssert (targetReportU.material == masterReportU.material and lmnArrayEquals (lmnFaceIDs targetReportU) #(1,1,1,1,1,1)) "Load Report U has no effect on the expected Normalize result"
+    loadedSnapshotAfterNormalizeU = LunarMaterialIDNormalizerRollout.getLoadedReportSnapshot()
+    lmnAssert (loadedSnapshotAfterNormalizeU[14] == reportPathU) "Live Analyze and Normalize do not replace the loaded read-only snapshot"
     try (deleteFile reportPathU) catch()
 
     -- One Undo reverses append, face remap, and Target material assignment together.

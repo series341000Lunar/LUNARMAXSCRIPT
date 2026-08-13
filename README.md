@@ -18,7 +18,7 @@ Transform, controller, base-object, visibility, and transform-lock utility for A
 
 Normalizes Editable Poly face Material IDs and Multi/Sub-Object material assignments to a selected Master object.
 
-- [Documentation](LunarMaterialIDNormalizer/README.md)
+- Documentation: [한국어](LunarMaterialIDNormalizer/README.md) · [Català](LunarMaterialIDNormalizer/README.ca.md)
 - [MAXScript Source](LunarMaterialIDNormalizer/src/LunarMaterialIDNormalizer.ms)
 
 ## Repository Structure

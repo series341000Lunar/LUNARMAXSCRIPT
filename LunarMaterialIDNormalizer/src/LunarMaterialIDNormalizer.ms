@@ -16,7 +16,7 @@ if LunarMaterialIDNormalizerRollout != undefined do
     try (destroyDialog LunarMaterialIDNormalizerRollout) catch()
 )
 
-rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:760 height:1018
+rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer MK1" width:760 height:1040
 (
     groupBox gbPreprocess "PREPROCESS" pos:[8,8] width:744 height:166
     checkbox chkConvertUSD "Convert USD Preview Surface to VRayMtl" pos:[20,30] width:330 height:20 checked:true
@@ -50,10 +50,11 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
     button btnApply "Normalize / Apply" pos:[260,868] width:240 height:36
     button btnExportReport "Export Report..." pos:[512,868] width:240 height:36
     checkbox chkAutoExport "Auto Export After Operation" pos:[10,912] width:250 height:20 checked:false
+    button btnLoadReport "Load Report..." pos:[512,912] width:240 height:30
 
-    label lblSummary "MASTER: None | Targets: 0 | Materials: 0 | Matched: 0 | Pending Append: 0" pos:[10,938] width:740 height:18
-    label lblConversionSummary "USD: 0 | Existing VRay: 0 | Unsupported: 0 | Texture Ignored: 0 | Conflicts: 0" pos:[10,960] width:740 height:18
-    label lblStatus "Status: Ready" pos:[10,982] width:740 height:28
+    label lblSummary "MASTER: None | Targets: 0 | Materials: 0 | Matched: 0 | Pending Append: 0" pos:[10,950] width:740 height:18
+    label lblConversionSummary "USD: 0 | Existing VRay: 0 | Unsupported: 0 | Texture Ignored: 0 | Conflicts: 0" pos:[10,972] width:740 height:18
+    label lblStatus "Status: Ready" pos:[10,994] width:740 height:28
 
     local DEBUG_MODE = false
     local masterNode = undefined
@@ -85,6 +86,16 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
     local lastAppendedRows = #()
     local lastTextureIgnoredNames = #()
     local lastReportPath = ""
+    local lastConvertOnlyNodeNames = #()
+    local lastConvertOnlyMaterialCount = 0
+    local lastConvertOnlyUSDCount = 0
+    local lastConvertOnlyExistingVRayCount = 0
+    local lastConvertOnlyUnsupportedCount = 0
+    local lastConvertOnlySkippedCount = 0
+    local lastConvertOnlyUnsupportedRows = #()
+    local loadedReport = undefined
+    local loadedReportForm = undefined
+    local loadedReportTargetList = undefined
 
     /*
         Canonical row:
@@ -229,6 +240,14 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         scopedMaterials
     )
 
+    fn collectMaterialsFromNodes nodeValues =
+    (
+        scopedMaterials = #()
+        for nodeValue in nodeValues where isValidStoredNode nodeValue do
+            collectFromTopMaterial nodeValue.material
+        scopedMaterials
+    )
+
     fn vrayClassIsAvailable =
     (
         local available = false
@@ -255,7 +274,7 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         found
     )
 
-    fn analyzePreprocess =
+    fn analyzePreprocess scopeNodes:undefined =
     (
         conversionPlan = #()
         diffuseConflictNames = #()
@@ -267,7 +286,10 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         preprocessConflictCount = 0
         classConflictCount = 0
         preprocessErrorText = ""
-        collectScopedMaterials()
+        if scopeNodes == undefined then
+            collectScopedMaterials()
+        else
+            collectMaterialsFromNodes scopeNodes
 
         for materialValue in scopedMaterials do
         (
@@ -490,6 +512,19 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         )
     )
 
+    fn applyUSDConversionsToNodes nodeValues =
+    (
+        if not chkConvertUSD.checked or conversionPlan.count == 0 then
+            0
+        else
+        (
+            local convertedCount = buildConversionCache()
+            for nodeValue in nodeValues where isValidStoredNode nodeValue do
+                replaceUSDReferencesInTopMaterial nodeValue
+            convertedCount
+        )
+    )
+
     fn captureConversionRowsFromCache =
     (
         local rows = #()
@@ -549,6 +584,22 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
             if isValidStoredNode masterNode and isMultiMaterial masterNode.material do
                 appendUniqueMaterial multiMaterials masterNode.material
             for nodeValue in targetNodes where isValidStoredNode nodeValue and isMultiMaterial nodeValue.material do
+                appendUniqueMaterial multiMaterials nodeValue.material
+
+            local changedCount = 0
+            for materialValue in multiMaterials do changedCount += syncMultiSlotNames materialValue
+            changedCount
+        )
+    )
+
+    fn syncMultiSlotNamesForNodes nodeValues =
+    (
+        if not chkSyncSlotNames.checked then
+            0
+        else
+        (
+            local multiMaterials = #()
+            for nodeValue in nodeValues where isValidStoredNode nodeValue and isMultiMaterial nodeValue.material do
                 appendUniqueMaterial multiMaterials nodeValue.material
 
             local changedCount = 0
@@ -1090,6 +1141,13 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         )
     )
 
+    fn clearMasterNode =
+    (
+        masterNode = undefined
+        invalidateAnalysis "MASTER cleared."
+        true
+    )
+
     fn captureMasterFromSelection =
     (
         if selection.count != 1 then
@@ -1330,7 +1388,17 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         local reportName = sceneBase + "_MaterialNormalize_" + operationFilenamePart lastOperation + "_" +
             reportTimestamp filenameSafe:true + ".txt"
         local reportDirectory = if maxFilePath != "" then maxFilePath else getDir #export
-        pathConfig.appendPath reportDirectory reportName
+        if reportDirectory == undefined or reportDirectory == "" or not doesDirectoryExist reportDirectory do
+            reportDirectory = getDir #userScripts
+        if reportDirectory == undefined or reportDirectory == "" or not doesDirectoryExist reportDirectory do
+            reportDirectory = (dotNetClass "System.IO.Path").GetTempPath()
+        (pathConfig.appendPath (reportDirectory as string) reportName) as string
+    )
+
+    fn isValidReportSeedPath reportPath =
+    (
+        reportPath != undefined and classOf reportPath == String and reportPath.count > 0 and
+            doesDirectoryExist (getFilenamePath reportPath)
     )
 
     fn buildReportText =
@@ -1340,9 +1408,15 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         local masterName = if isValidStoredNode masterNode then masterNode.name else "None"
         local predictedConversionCount = if lastOperation == #analyze then conversionPlan.count else lastApplyConvertedCount
         local appendedDisplayCount = if lastOperation == #normalize then lastApplyAppendedCount else pendingCount
+        local reportMaterialCount = if lastOperation == #convertOnly then lastConvertOnlyMaterialCount else canonicalRows.count
+        local reportUSDCount = if lastOperation == #convertOnly then lastConvertOnlyUSDCount else usdMaterialCount
+        local reportExistingVRayCount = if lastOperation == #convertOnly then lastConvertOnlyExistingVRayCount else existingVRayCount
+        local reportUnsupportedCount = if lastOperation == #convertOnly then lastConvertOnlyUnsupportedCount else unsupportedMaterialCount
+        local reportSkippedCount = if lastOperation == #convertOnly then lastConvertOnlySkippedCount else lastSkippedCount
 
         reportText += "Lunar Material ID Normalizer Report" + newLine
-        reportText += "Tool Version: 1.2" + newLine
+        reportText += "Tool Version: MK1" + newLine
+        reportText += "Report Format Version: 1" + newLine
         reportText += "Scene Path: " + sceneDisplayPath() + newLine
         reportText += "Generated: " + reportTimestamp() + newLine
         reportText += "Last Operation: " + operationLabel lastOperation + newLine + newLine
@@ -1362,17 +1436,25 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
             reportText += (if isValidStoredNode nodeValue then nodeValue.name else "<Invalid Node>") + newLine
         reportText += newLine
 
+        if lastOperation == #convertOnly do
+        (
+            reportText += "[CONVERT ONLY SELECTION]" + newLine
+            for nodeName in lastConvertOnlyNodeNames do reportText += nodeName + newLine
+            if lastConvertOnlyNodeNames.count == 0 do reportText += "None" + newLine
+            reportText += newLine
+        )
+
         reportText += "[SUMMARY]" + newLine
-        reportText += "Material Count: " + (canonicalRows.count as string) + newLine
-        reportText += "USD Material Count: " + (usdMaterialCount as string) + newLine
-        reportText += "Existing VRayMtl Count: " + (existingVRayCount as string) + newLine
-        reportText += "Unsupported Count: " + (unsupportedMaterialCount as string) + newLine
+        reportText += "Material Count: " + (reportMaterialCount as string) + newLine
+        reportText += "USD Material Count: " + (reportUSDCount as string) + newLine
+        reportText += "Existing VRayMtl Count: " + (reportExistingVRayCount as string) + newLine
+        reportText += "Unsupported Count: " + (reportUnsupportedCount as string) + newLine
         reportText += "Converted Count: " + (predictedConversionCount as string) + newLine
         reportText += "Matched Count: " + (matchedCount as string) + newLine
         reportText += "Pending/Appended Count: " + (appendedDisplayCount as string) + newLine
         reportText += "Class Conflict Count: " + (classConflictCount as string) + newLine
         reportText += "Color Conflict Count: " + (preprocessConflictCount as string) + newLine
-        reportText += "Skipped Count: " + (lastSkippedCount as string) + newLine
+        reportText += "Skipped Count: " + (reportSkippedCount as string) + newLine
         reportText += "Slot Names Updated: " + (lastSyncedSlotCount as string) + newLine + newLine
 
         reportText += "[CANONICAL MATERIAL TABLE]" + newLine
@@ -1431,8 +1513,16 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         reportText += "[CONFLICTS / WARNINGS]" + newLine
         for conflictName in classConflictNames do reportText += "CLASS CONFLICT\t" + conflictName + newLine
         for conflictName in diffuseConflictNames do reportText += "COLOR CONFLICT\t" + conflictName + newLine
-        for materialValue in scopedMaterials where not isUSDPreviewMaterial materialValue and not isVRayMaterial materialValue do
-            reportText += "UNSUPPORTED / KEEP\t" + safeMaterialName materialValue + "\t" + materialClassText materialValue + newLine
+        if lastOperation == #convertOnly then
+        (
+            for unsupportedRow in lastConvertOnlyUnsupportedRows do
+                reportText += "UNSUPPORTED / KEEP\t" + unsupportedRow[1] + "\t" + unsupportedRow[2] + newLine
+        )
+        else
+        (
+            for materialValue in scopedMaterials where not isUSDPreviewMaterial materialValue and not isVRayMaterial materialValue do
+                reportText += "UNSUPPORTED / KEEP\t" + safeMaterialName materialValue + "\t" + materialClassText materialValue + newLine
+        )
         for materialValue in scopedMaterials where materialHasTextureDrivenDiffuse materialValue do
             reportText += "TEXTURE IGNORED\t" + safeMaterialName materialValue + newLine
         if lastOperation != #analyze do
@@ -1442,11 +1532,553 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         )
         for analysis in targetAnalyses where not analysis[5] do
             reportText += analysis[2] + "\t" + (if isValidStoredNode analysis[1] then analysis[1].name else "<Invalid Node>") + "\t" + analysis[3] + newLine
-        if classConflictNames.count == 0 and diffuseConflictNames.count == 0 and unsupportedMaterialCount == 0 and textureIgnoredCount == 0 and
+        if classConflictNames.count == 0 and diffuseConflictNames.count == 0 and reportUnsupportedCount == 0 and textureIgnoredCount == 0 and
             (lastOperation == #analyze or lastTextureIgnoredNames.count == 0) and lastSkippedCount == 0 do
             reportText += "None" + newLine
 
         reportText
+    )
+
+    /* Loaded reports are deliberately value-only snapshots.
+       Model indices:
+       1 format version, 2 metadata pairs, 3 preprocess pairs, 4 master lines,
+       5 target lines, 6 summary pairs, 7 canonical rows, 8 target remap groups,
+       9 conversion rows, 10 appended rows, 11 report warnings,
+       12 parser warnings, 13 Convert Only selection lines, 14 source path.
+       No scene node or material reference is stored in this model. */
+
+    fn trimReportText textValue =
+    (
+        if textValue == undefined then
+            ""
+        else
+        (
+            local value = textValue as string
+            local firstIndex = 1
+            local lastIndex = value.count
+            while firstIndex <= lastIndex and (findString " \t\r\n" value[firstIndex]) != undefined do firstIndex += 1
+            while lastIndex >= firstIndex and (findString " \t\r\n" value[lastIndex]) != undefined do lastIndex -= 1
+            if lastIndex < firstIndex then "" else substring value firstIndex (lastIndex - firstIndex + 1)
+        )
+    )
+
+    fn reportTextStartsWith textValue prefixValue =
+    (
+        textValue != undefined and prefixValue != undefined and textValue.count >= prefixValue.count and
+            substring textValue 1 prefixValue.count == prefixValue
+    )
+
+    fn splitReportTextLines reportText =
+    (
+        local normalized = substituteString (substituteString reportText "\r\n" "\n") "\r" "\n"
+        local lines = #()
+        local currentLine = ""
+        for charIndex = 1 to normalized.count do
+        (
+            if normalized[charIndex] == "\n" then
+            (
+                append lines currentLine
+                currentLine = ""
+            )
+            else
+                currentLine += normalized[charIndex]
+        )
+        append lines currentLine
+        lines
+    )
+
+    fn splitReportTabs lineValue =
+    (
+        local values = #()
+        local currentValue = ""
+        for charIndex = 1 to lineValue.count do
+        (
+            if lineValue[charIndex] == "\t" then
+            (
+                append values currentValue
+                currentValue = ""
+            )
+            else
+                currentValue += lineValue[charIndex]
+        )
+        append values currentValue
+        values
+    )
+
+    fn isReportIntegerText textValue =
+    (
+        local value = trimReportText textValue
+        local firstDigit = 1
+        local valid = value.count > 0
+        if valid and (value[1] == "+" or value[1] == "-") do firstDigit = 2
+        if firstDigit > value.count then valid = false
+        if valid do
+        (
+            for charIndex = firstDigit to value.count while valid do
+                if (findString "0123456789" value[charIndex]) == undefined do valid = false
+        )
+        valid
+    )
+
+    fn reportPairValue pairs keyValue =
+    (
+        local result = ""
+        for pairValue in pairs while result == "" do
+            if pairValue.count >= 2 and pairValue[1] == keyValue do result = pairValue[2]
+        result
+    )
+
+    fn parseReportPairs lines sectionLabel warnings:#() =
+    (
+        local pairs = #()
+        for lineValue in lines do
+        (
+            local cleanLine = trimReportText lineValue
+            if cleanLine != "" and cleanLine != "None" do
+            (
+                local colonIndex = findString cleanLine ":"
+                if colonIndex == undefined then
+                    append warnings (sectionLabel + ": ignored malformed key/value row: " + cleanLine)
+                else
+                (
+                    local keyValue = trimReportText (substring cleanLine 1 (colonIndex - 1))
+                    local valueStart = colonIndex + 1
+                    local pairText = if valueStart > cleanLine.count then "" else trimReportText (substring cleanLine valueStart (cleanLine.count - valueStart + 1))
+                    if keyValue == "" then
+                        append warnings (sectionLabel + ": ignored a row with an empty key.")
+                    else
+                        append pairs #(keyValue, pairText)
+                )
+            )
+        )
+        pairs
+    )
+
+    fn reportSectionLines sections sectionName =
+    (
+        local result = #()
+        for sectionValue in sections while result.count == 0 do
+            if sectionValue[1] == sectionName do result = sectionValue[2]
+        result
+    )
+
+    fn normalizeReportColumns values expectedCount sectionLabel warnings =
+    (
+        local result = for value in values collect value
+        if result.count < expectedCount do
+        (
+            append warnings (sectionLabel + ": a malformed row had " + (result.count as string) + " of " + (expectedCount as string) + " columns.")
+            while result.count < expectedCount do append result ""
+        )
+        if result.count > expectedCount do
+        (
+            append warnings (sectionLabel + ": a row had extra columns; extras were preserved in the final column.")
+            local mergedValue = result[expectedCount]
+            for valueIndex = expectedCount + 1 to result.count do mergedValue += " | " + result[valueIndex]
+            result = for valueIndex = 1 to expectedCount collect (if valueIndex == expectedCount then mergedValue else result[valueIndex])
+        )
+        result
+    )
+
+    fn parseReportTable lines expectedCount sectionLabel headerPrefix:"" integerColumns:#() =
+    (
+        local rows = #()
+        local warnings = #()
+        for lineValue in lines do
+        (
+            local cleanLine = trimReportText lineValue
+            if cleanLine != "" and cleanLine != "None" and (headerPrefix == "" or not reportTextStartsWith cleanLine headerPrefix) do
+            (
+                local rowValue = normalizeReportColumns (splitReportTabs lineValue) expectedCount sectionLabel warnings
+                for columnIndex in integerColumns do
+                (
+                    local integerText = trimReportText rowValue[columnIndex]
+                    if integerText != "-" and not isReportIntegerText integerText do
+                        append warnings (sectionLabel + ": invalid integer '" + integerText + "' was kept as text.")
+                )
+                append rows rowValue
+            )
+        )
+        #(rows, warnings)
+    )
+
+    fn parseTargetRemapSection lines =
+    (
+        local groups = #()
+        local warnings = #()
+        local currentTarget = ""
+        local currentRows = #()
+
+        for lineValue in lines do
+        (
+            local cleanLine = trimReportText lineValue
+            if reportTextStartsWith cleanLine "Target Object:" then
+            (
+                if currentTarget != "" do append groups #(currentTarget, currentRows)
+                currentTarget = trimReportText (substring cleanLine 15 (cleanLine.count - 14))
+                if currentTarget == "" do currentTarget = "<Unnamed Target>"
+                currentRows = #()
+            )
+            else if cleanLine != "" and not reportTextStartsWith cleanLine "Old ID\tMaterial Name" do
+            (
+                if currentTarget == "" then
+                    append warnings ("PER TARGET REMAP TABLE: ignored a row before any Target Object header: " + cleanLine)
+                else
+                (
+                    local parsedRow = parseReportTable #(lineValue) 6 "PER TARGET REMAP TABLE" integerColumns:#(1,5)
+                    for rowValue in parsedRow[1] do append currentRows rowValue
+                    for warningValue in parsedRow[2] do append warnings warningValue
+                )
+            )
+        )
+        if currentTarget != "" do append groups #(currentTarget, currentRows)
+        #(groups, warnings)
+    )
+
+    fn parseAppendedReportSection lines =
+    (
+        local rows = #()
+        local warnings = #()
+        for lineValue in lines do
+        (
+            local cleanLine = trimReportText lineValue
+            if cleanLine != "" and cleanLine != "None" do
+            (
+                local values = splitReportTabs lineValue
+                if values.count < 2 do
+                (
+                    append warnings ("APPENDED MATERIALS: a malformed row had " + (values.count as string) + " of at least 2 columns.")
+                    while values.count < 2 do append values ""
+                )
+                if values.count == 2 do append values ""
+                if values.count > 3 do values = normalizeReportColumns values 3 "APPENDED MATERIALS" warnings
+                if not isReportIntegerText values[1] do
+                    append warnings ("APPENDED MATERIALS: invalid integer '" + values[1] + "' was kept as text.")
+                append rows values
+            )
+        )
+        #(rows, warnings)
+    )
+
+    fn meaningfulReportLines lines =
+    (
+        for lineValue in lines where trimReportText lineValue != "" and trimReportText lineValue != "None" collect lineValue
+    )
+
+    fn parseReportText reportText =
+    (
+        if reportText == undefined or classOf reportText != String or trimReportText reportText == "" then
+            #(false, "The selected report is empty.", undefined)
+        else
+        (
+            local lines = splitReportTextLines reportText
+            local firstMeaningfulIndex = 0
+            for lineIndex = 1 to lines.count while firstMeaningfulIndex == 0 do
+                if trimReportText lines[lineIndex] != "" do firstMeaningfulIndex = lineIndex
+
+            if firstMeaningfulIndex == 0 or trimReportText lines[firstMeaningfulIndex] != "Lunar Material ID Normalizer Report" then
+                #(false, "This file is not a Lunar Material ID Normalizer report.", undefined)
+            else
+            (
+                local preambleLines = #()
+                local sections = #()
+                local currentSection = ""
+                local currentLines = #()
+
+                for lineIndex = firstMeaningfulIndex + 1 to lines.count do
+                (
+                    local cleanLine = trimReportText lines[lineIndex]
+                    local isHeader = cleanLine.count >= 2 and cleanLine[1] == "[" and cleanLine[cleanLine.count] == "]"
+                    if isHeader then
+                    (
+                        if currentSection != "" do append sections #(currentSection, currentLines)
+                        currentSection = substring cleanLine 2 (cleanLine.count - 2)
+                        currentLines = #()
+                    )
+                    else if currentSection == "" then
+                        append preambleLines lines[lineIndex]
+                    else
+                        append currentLines lines[lineIndex]
+                )
+                if currentSection != "" do append sections #(currentSection, currentLines)
+
+                local recognizableSections = #("PREPROCESS SETTINGS", "MASTER", "TARGETS", "SUMMARY", "CANONICAL MATERIAL TABLE", "PER TARGET REMAP TABLE", "MATERIAL CONVERSION TABLE", "APPENDED MATERIALS", "CONFLICTS / WARNINGS")
+                local recognizableCount = 0
+                for sectionValue in sections do if findItem recognizableSections sectionValue[1] > 0 do recognizableCount += 1
+
+                if recognizableCount == 0 then
+                    #(false, "The report header is valid, but no recognized report sections were found.", undefined)
+                else
+                (
+                    local parserWarnings = #()
+                    local metadata = parseReportPairs preambleLines "REPORT HEADER" warnings:parserWarnings
+                    local formatVersion = reportPairValue metadata "Report Format Version"
+                    if formatVersion == "" then
+                    (
+                        formatVersion = "1"
+                        append parserWarnings "Legacy report: Report Format Version was missing and was interpreted as version 1."
+                    )
+
+                    if formatVersion != "1" then
+                        #(false, "Unsupported Report Format Version: " + formatVersion, undefined)
+                    else
+                    (
+                        local preprocessPairs = parseReportPairs (reportSectionLines sections "PREPROCESS SETTINGS") "PREPROCESS SETTINGS" warnings:parserWarnings
+                        local summaryPairs = parseReportPairs (reportSectionLines sections "SUMMARY") "SUMMARY" warnings:parserWarnings
+                        local integerSummaryKeys = #("Material Count", "USD Material Count", "Existing VRayMtl Count", "Unsupported Count", "Converted Count", "Matched Count", "Pending/Appended Count", "Class Conflict Count", "Color Conflict Count", "Skipped Count", "Slot Names Updated")
+                        for pairValue in summaryPairs where findItem integerSummaryKeys pairValue[1] > 0 do
+                            if not isReportIntegerText pairValue[2] do append parserWarnings ("SUMMARY: invalid integer '" + pairValue[2] + "' for " + pairValue[1] + " was kept as text.")
+                        local canonicalResult = parseReportTable (reportSectionLines sections "CANONICAL MATERIAL TABLE") 5 "CANONICAL MATERIAL TABLE" headerPrefix:"ID\tMaterial Name" integerColumns:#(1)
+                        local remapResult = parseTargetRemapSection (reportSectionLines sections "PER TARGET REMAP TABLE")
+                        local conversionResult = parseReportTable (reportSectionLines sections "MATERIAL CONVERSION TABLE") 7 "MATERIAL CONVERSION TABLE" headerPrefix:"Source Material\t"
+                        local appendedResult = parseAppendedReportSection (reportSectionLines sections "APPENDED MATERIALS")
+                        local warningRows = #()
+                        for lineValue in reportSectionLines sections "CONFLICTS / WARNINGS" where trimReportText lineValue != "" and trimReportText lineValue != "None" do
+                            append warningRows (splitReportTabs lineValue)
+
+                        for warningValue in canonicalResult[2] do append parserWarnings warningValue
+                        for warningValue in remapResult[2] do append parserWarnings warningValue
+                        for warningValue in conversionResult[2] do append parserWarnings warningValue
+                        for warningValue in appendedResult[2] do append parserWarnings warningValue
+
+                        local reportModel = #(
+                            formatVersion,
+                            metadata,
+                            preprocessPairs,
+                            meaningfulReportLines (reportSectionLines sections "MASTER"),
+                            meaningfulReportLines (reportSectionLines sections "TARGETS"),
+                            summaryPairs,
+                            canonicalResult[1],
+                            remapResult[1],
+                            conversionResult[1],
+                            appendedResult[1],
+                            warningRows,
+                            parserWarnings,
+                            meaningfulReportLines (reportSectionLines sections "CONVERT ONLY SELECTION"),
+                            ""
+                        )
+                        #(true, "", reportModel)
+                    )
+                )
+            )
+        )
+    )
+
+    fn addLoadedViewerPlaceholder listControl message =
+    (
+        addListViewRow listControl #(message)
+    )
+
+    fn loadedViewerAddRows listControl rows =
+    (
+        if rows.count == 0 then
+            addLoadedViewerPlaceholder listControl "Not available in this report"
+        else
+            for rowValue in rows do addListViewRow listControl rowValue
+    )
+
+    fn onLoadedReportTargetChanged sender eventArgs =
+    (
+        if loadedReport != undefined and loadedReportTargetList != undefined do
+        (
+            local targetList = loadedReportTargetList[2]
+            clearListView targetList
+            local selectedIndex = sender.selectedIndex + 1
+            if selectedIndex >= 1 and selectedIndex <= loadedReport[8].count then
+            (
+                local rows = loadedReport[8][selectedIndex][2]
+                loadedViewerAddRows targetList rows
+            )
+            else
+                addLoadedViewerPlaceholder targetList "Select a target report snapshot"
+        )
+    )
+
+    fn onLoadedReportViewerClosed sender eventArgs =
+    (
+        loadedReportForm = undefined
+        loadedReportTargetList = undefined
+    )
+
+    fn onLoadedReportViewerClose sender eventArgs =
+    (
+        if loadedReportForm != undefined do loadedReportForm.Close()
+    )
+
+    fn onLoadedReportViewerOpenAnother sender eventArgs =
+    (
+        loadReportWithDialog()
+    )
+
+    fn showLoadedReportViewer =
+    (
+        if loadedReport == undefined then
+            false
+        else
+        (
+            if loadedReportForm != undefined do try (loadedReportForm.Close()) catch()
+
+            local form = dotNetObject "System.Windows.Forms.Form"
+            form.text = "Lunar Material ID Normalizer — LOADED REPORT — READ ONLY"
+            form.size = dotNetObject "System.Drawing.Size" 1040 760
+            form.minimumSize = dotNetObject "System.Drawing.Size" 900 650
+            form.startPosition = (dotNetClass "System.Windows.Forms.FormStartPosition").CenterScreen
+
+            local banner = dotNetObject "System.Windows.Forms.Label"
+            banner.text = "LOADED REPORT — READ ONLY     |     READ ONLY SNAPSHOT"
+            banner.location = dotNetObject "System.Drawing.Point" 12 12
+            banner.size = dotNetObject "System.Drawing.Size" 996 24
+            banner.font = dotNetObject "System.Drawing.Font" "Segoe UI" 11.0 (dotNetClass "System.Drawing.FontStyle").Bold
+            form.controls.add banner
+
+            local pathLabel = dotNetObject "System.Windows.Forms.Label"
+            pathLabel.text = "Source: " + loadedReport[14]
+            pathLabel.location = dotNetObject "System.Drawing.Point" 12 40
+            pathLabel.size = dotNetObject "System.Drawing.Size" 996 20
+            pathLabel.autoEllipsis = true
+            form.controls.add pathLabel
+
+            local tabs = dotNetObject "System.Windows.Forms.TabControl"
+            tabs.location = dotNetObject "System.Drawing.Point" 12 68
+            tabs.size = dotNetObject "System.Drawing.Size" 996 594
+            form.controls.add tabs
+
+            local summaryPage = dotNetObject "System.Windows.Forms.TabPage" "Summary"
+            local canonicalPage = dotNetObject "System.Windows.Forms.TabPage" "Canonical Materials"
+            local remapPage = dotNetObject "System.Windows.Forms.TabPage" "Target Remap"
+            local conversionPage = dotNetObject "System.Windows.Forms.TabPage" "Conversions"
+            local appendedPage = dotNetObject "System.Windows.Forms.TabPage" "Appended"
+            local warningPage = dotNetObject "System.Windows.Forms.TabPage" "Conflicts / Warnings"
+            tabs.tabPages.add summaryPage
+            tabs.tabPages.add canonicalPage
+            tabs.tabPages.add remapPage
+            tabs.tabPages.add conversionPage
+            tabs.tabPages.add appendedPage
+            tabs.tabPages.add warningPage
+
+            local summaryList = dotNetObject "System.Windows.Forms.ListView"
+            summaryList.dock = (dotNetClass "System.Windows.Forms.DockStyle").Fill
+            configureListView summaryList #(#("Field", 300), #("Snapshot Value", 650))
+            addListViewRow summaryList #("READ ONLY SNAPSHOT", "No loaded value can modify the current scene.")
+            addListViewRow summaryList #("Report Format Version", loadedReport[1])
+            for pairValue in loadedReport[2] where pairValue[1] != "Report Format Version" do addListViewRow summaryList pairValue
+            for pairValue in loadedReport[3] do addListViewRow summaryList #("Preprocess / " + pairValue[1], pairValue[2])
+            addListViewRow summaryList #("Master", if loadedReport[4].count == 0 then "Not available" else loadedReport[4][1])
+            addListViewRow summaryList #("Targets", if loadedReport[5].count == 0 then "Not available" else (loadedReport[5].count as string))
+            for pairValue in loadedReport[6] do addListViewRow summaryList #("Summary / " + pairValue[1], pairValue[2])
+            summaryPage.controls.add summaryList
+
+            local canonicalList = dotNetObject "System.Windows.Forms.ListView"
+            canonicalList.dock = (dotNetClass "System.Windows.Forms.DockStyle").Fill
+            configureListView canonicalList #(#("ID", 70), #("Material Name", 240), #("Raw Class", 170), #("Effective / Final Class", 190), #("Source / Status", 270))
+            loadedViewerAddRows canonicalList loadedReport[7]
+            canonicalPage.controls.add canonicalList
+
+            local targetCombo = dotNetObject "System.Windows.Forms.ComboBox"
+            targetCombo.location = dotNetObject "System.Drawing.Point" 10 10
+            targetCombo.size = dotNetObject "System.Drawing.Size" 950 24
+            targetCombo.dropDownStyle = (dotNetClass "System.Windows.Forms.ComboBoxStyle").DropDownList
+            for groupValue in loadedReport[8] do targetCombo.items.add groupValue[1]
+            remapPage.controls.add targetCombo
+            local targetList = dotNetObject "System.Windows.Forms.ListView"
+            targetList.location = dotNetObject "System.Drawing.Point" 10 42
+            targetList.size = dotNetObject "System.Drawing.Size" 950 500
+            configureListView targetList #(#("Old ID", 75), #("Material Name", 235), #("Raw Class", 155), #("Effective Class", 165), #("New ID", 75), #("Status", 225))
+            remapPage.controls.add targetList
+            loadedReportTargetList = #(targetCombo, targetList)
+            dotNet.addEventHandler targetCombo "SelectedIndexChanged" onLoadedReportTargetChanged
+            if loadedReport[8].count > 0 then targetCombo.selectedIndex = 0 else addLoadedViewerPlaceholder targetList "Not available in this report"
+
+            local conversionList = dotNetObject "System.Windows.Forms.ListView"
+            conversionList.dock = (dotNetClass "System.Windows.Forms.DockStyle").Fill
+            configureListView conversionList #(#("Source Material", 190), #("Source Class", 140), #("Converted Material", 190), #("Final Class", 120), #("Diffuse", 100), #("Glossiness", 100), #("Reflection", 120))
+            loadedViewerAddRows conversionList loadedReport[9]
+            conversionPage.controls.add conversionList
+
+            local appendedList = dotNetObject "System.Windows.Forms.ListView"
+            appendedList.dock = (dotNetClass "System.Windows.Forms.DockStyle").Fill
+            configureListView appendedList #(#("ID", 90), #("Material Name", 550), #("Status", 280))
+            loadedViewerAddRows appendedList loadedReport[10]
+            appendedPage.controls.add appendedList
+
+            local warningList = dotNetObject "System.Windows.Forms.ListView"
+            warningList.dock = (dotNetClass "System.Windows.Forms.DockStyle").Fill
+            configureListView warningList #(#("Type", 230), #("Item", 300), #("Detail", 400))
+            for warningRow in loadedReport[11] do
+                addListViewRow warningList (normalizeReportColumns warningRow 3 "VIEWER WARNING" #())
+            for warningText in loadedReport[12] do addListViewRow warningList #("PARSER WARNING", warningText, "")
+            if loadedReport[11].count == 0 and loadedReport[12].count == 0 do addLoadedViewerPlaceholder warningList "None"
+            warningPage.controls.add warningList
+
+            local openButton = dotNetObject "System.Windows.Forms.Button"
+            openButton.text = "Open Another Report..."
+            openButton.location = dotNetObject "System.Drawing.Point" 12 674
+            openButton.size = dotNetObject "System.Drawing.Size" 190 32
+            form.controls.add openButton
+            dotNet.addEventHandler openButton "Click" onLoadedReportViewerOpenAnother
+
+            local closeButton = dotNetObject "System.Windows.Forms.Button"
+            closeButton.text = "Close"
+            closeButton.location = dotNetObject "System.Drawing.Point" 858 674
+            closeButton.size = dotNetObject "System.Drawing.Size" 150 32
+            form.controls.add closeButton
+            dotNet.addEventHandler closeButton "Click" onLoadedReportViewerClose
+            dotNet.addEventHandler form "FormClosed" onLoadedReportViewerClosed
+
+            loadedReportForm = form
+            form.Show()
+            true
+        )
+    )
+
+    fn loadReportFromPath reportPath showViewer:true showErrors:true =
+    (
+        local loadError = ""
+        local parsedResult = undefined
+        if reportPath == undefined or classOf reportPath != String or reportPath == "" then
+            loadError = "No report path was provided."
+        else if not doesFileExist reportPath then
+            loadError = "The selected report file does not exist."
+        else
+        (
+            try
+            (
+                local reportText = (dotNetClass "System.IO.File").ReadAllText reportPath
+                parsedResult = parseReportText reportText
+                if not parsedResult[1] do loadError = parsedResult[2]
+            )
+            catch
+            (
+                loadError = "The report could not be read as UTF-8 text: " + exceptionText()
+            )
+        )
+
+        if loadError != "" then
+        (
+            setStatus ("ERROR: " + loadError)
+            lmnLog "WARN" loadError
+            if showErrors do messageBox loadError title:"Load Material Normalize Report"
+            false
+        )
+        else
+        (
+            loadedReport = parsedResult[3]
+            loadedReport[14] = reportPath
+            setStatus ("Loaded read-only report: " + getFilenameFile reportPath + getFilenameType reportPath)
+            if showViewer do showLoadedReportViewer()
+            true
+        )
+    )
+
+    fn loadReportWithDialog =
+    (
+        local reportPath = getOpenFileName caption:"Load Material Normalize Report" types:"Text Report (*.txt)|*.txt|"
+        if reportPath == undefined then true else loadReportFromPath reportPath showViewer:true showErrors:true
+    )
+
+    fn getLoadedReportSnapshot =
+    (
+        loadedReport
     )
 
     fn exportReportToPath reportPath =
@@ -1475,18 +2107,27 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
     fn exportReportWithDialog =
     (
         analyzeAll updateUI:true
-        local reportPath = getSaveFileName caption:"Export Material Normalize Report" filename:reportDefaultPath() types:"Text Report (*.txt)|*.txt|"
-        if reportPath == undefined then
-            false
-        else if exportReportToPath reportPath then
+        local defaultReportPath = reportDefaultPath()
+        if not isValidReportSeedPath defaultReportPath then
         (
-            setStatus ("Report exported: " + reportPath)
-            true
+            setStatus "ERROR: A valid default report path could not be created."
+            false
         )
         else
         (
-            setStatus "ERROR: Report export failed."
-            false
+            local reportPath = getSaveFileName caption:"Export Material Normalize Report" filename:defaultReportPath types:"Text Report (*.txt)|*.txt|"
+            if reportPath == undefined then
+                false
+            else if exportReportToPath reportPath then
+            (
+                setStatus ("Report exported: " + reportPath)
+                true
+            )
+            else
+            (
+                setStatus "ERROR: Report export failed."
+                false
+            )
         )
     )
 
@@ -1509,21 +2150,24 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
 
     fn convertMaterialsOnly =
     (
-        cleanStoredNodes()
-        if not isValidStoredNode masterNode then
+        local selectedNodes = for nodeValue in selection where isValidStoredNode nodeValue collect nodeValue
+        if selectedNodes.count == 0 then
         (
-            setStatus "Set a valid Master object before conversion."
-            false
-        )
-        else if targetNodes.count == 0 then
-        (
-            setStatus "Add at least one Target before conversion."
+            setStatus "ERROR: Select one or more objects to convert."
             false
         )
         else
         (
-            local preprocessOK = analyzePreprocess()
+            local preprocessOK = analyzePreprocess scopeNodes:selectedNodes
             local preprocessValidation = validatePreprocessOptions()
+            local selectedMaterialCount = scopedMaterials.count
+            local selectedExistingVRayCount = existingVRayCount
+            local selectedUnsupportedCount = unsupportedMaterialCount
+            local selectedUnsupportedRows = for materialValue in scopedMaterials where not isUSDPreviewMaterial materialValue and not isVRayMaterial materialValue collect
+                #(safeMaterialName materialValue, materialClassText materialValue)
+            local selectedSkippedCount = 0
+            for nodeValue in selectedNodes where nodeValue.material == undefined do selectedSkippedCount += 1
+
             if not preprocessOK then
             (
                 refreshAllUI()
@@ -1546,14 +2190,15 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
                 local operationFailed = false
                 conversionCache = #()
                 lastTextureIgnoredNames = for materialValue in scopedMaterials where materialHasTextureDrivenDiffuse materialValue collect safeMaterialName materialValue
+                lastConvertOnlyNodeNames = for nodeValue in selectedNodes collect nodeValue.name
 
                 undo "Convert USD Materials Only" on
                 (
                     try
                     (
-                        convertedCount = applyUSDConversions()
+                        convertedCount = applyUSDConversionsToNodes selectedNodes
                         lastConversionRows = captureConversionRowsFromCache()
-                        syncedCount = syncRegisteredMultiSlotNames()
+                        syncedCount = syncMultiSlotNamesForNodes selectedNodes
                     )
                     catch
                     (
@@ -1574,10 +2219,22 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
                     lastSyncedSlotCount = syncedCount
                     lastAppendedRows = #()
                     lastOperation = #convertOnly
+                    lastConvertOnlyMaterialCount = selectedMaterialCount
+                    lastConvertOnlyExistingVRayCount = selectedExistingVRayCount
+                    lastConvertOnlyUnsupportedCount = selectedUnsupportedCount
+                    lastConvertOnlySkippedCount = selectedSkippedCount
+                    lastConvertOnlyUnsupportedRows = selectedUnsupportedRows
                     redrawViews()
-                    analyzeAll updateUI:true
+                    analyzePreprocess scopeNodes:selectedNodes
+                    lastConvertOnlyUSDCount = usdMaterialCount
+                    if isValidStoredNode masterNode and targetNodes.count > 0 then
+                        analyzeAll updateUI:true
+                    else
+                        refreshAllUI()
                     local resultMessage = "Convert Materials Only complete: " + (convertedCount as string) +
-                        " converted, " + (syncedCount as string) + " slot name(s) updated. No IDs or assignments changed."
+                        " converted, " + (selectedExistingVRayCount as string) + " existing VRay kept, " +
+                        (selectedUnsupportedCount as string) + " unsupported kept, " + (selectedSkippedCount as string) +
+                        " object(s) skipped, " + (syncedCount as string) + " slot name(s) updated. No IDs or assignments changed."
                     setStatus resultMessage
                     lmnLog "INFO" resultMessage
                     autoExportReport()
@@ -1705,6 +2362,11 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
         refreshAllUI()
     )
 
+    on LunarMaterialIDNormalizerRollout close do
+    (
+        if loadedReportForm != undefined do try (loadedReportForm.Close()) catch()
+    )
+
     on chkConvertUSD changed state do
     (
         updatePreprocessControlStates()
@@ -1735,10 +2397,7 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
     on btnSetMaster pressed do captureMasterFromSelection()
 
     on btnClearMaster pressed do
-    (
-        masterNode = undefined
-        invalidateAnalysis "MASTER cleared."
-    )
+        clearMasterNode()
 
     on btnAddTargets pressed do addSelectedTargets()
     on btnRemoveTargets pressed do removeSelectedTargets()
@@ -1755,6 +2414,7 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer" width:76
     )
     on btnConvertOnly pressed do convertMaterialsOnly()
     on btnApply pressed do applyNormalization()
+    on btnLoadReport pressed do loadReportWithDialog()
     on btnExportReport pressed do exportReportWithDialog()
 )
 
