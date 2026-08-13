@@ -1,6 +1,6 @@
 # Lunar Material ID Normalizer
 
-Cinema 4D 등에서 가져온 오브젝트를 각각 Attach한 뒤 서로 달라진 Multi/Sub-Object Material ID 순서와 Editable Poly face Material ID를 하나의 Master 기준으로 정규화하는 3ds Max MAXScript Utility입니다.
+Cinema 4D 또는 USD에서 가져온 오브젝트의 `USD Preview Surface`를 단순한 `VRayMtl`로 전처리하고, 서로 달라진 Multi/Sub-Object Material ID 순서와 Editable Poly face Material ID를 하나의 Master 기준으로 정규화하는 3ds Max MAXScript Utility입니다.
 
 ## 실행
 
@@ -11,13 +11,31 @@ Cinema 4D 등에서 가져온 오브젝트를 각각 Attach한 뒤 서로 달라
 
 ## 사용 순서
 
-1. 기준 Attach 결과 오브젝트 하나를 선택하고 `Set Master`를 누릅니다.
-2. 나머지 Attach 결과 오브젝트들을 선택하고 `Add Selected Targets`를 누릅니다.
-3. `Analyze`를 눌러 Canonical Material Table과 Target Remap Preview를 확인합니다.
-4. 새 재질은 `PENDING APPEND : <Object>`로 표시됩니다.
-5. Master의 중복 이름/ID 충돌이 없고 preview가 올바르면 `Normalize / Apply`를 누릅니다.
+1. `PREPROCESS`에서 USD 변환과 새 VRayMtl에 적용할 Override를 설정합니다.
+2. 기준 Attach 결과 오브젝트 하나를 선택하고 `Set Master`를 누릅니다.
+3. 나머지 Attach 결과 오브젝트들을 선택하고 `Add Selected Targets`를 누릅니다.
+4. `Analyze`를 눌러 변환 예정 상태, Canonical Material Table과 Target Remap Preview를 확인합니다.
+5. 새 재질은 `PENDING APPEND : <Object>`로 표시됩니다.
+6. 이름/색상 및 Master 이름/ID 충돌이 없고 preview가 올바르면 `Normalize / Apply`를 누릅니다.
 
-Apply 전체는 `Normalize Material IDs`라는 하나의 Undo 단위로 감쌉니다.
+USD 변환, append, face ID remap, Master material 할당을 포함한 Apply 전체는 `Convert USD and Normalize Material IDs`라는 하나의 Undo 단위로 감쌉니다.
+
+## USD → VRayMtl 전처리
+
+- `Convert USD Preview Surface to VRayMtl`은 기본 ON이며, OFF이면 기존 Material ID 정규화만 수행합니다.
+- Multi/Sub container와 Material ID는 그대로 두고 `MaxUsdPreviewSurface` sub-material reference만 교체합니다.
+- 새 VRayMtl에는 원본 이름과 constant `diffuseColor`만 복사합니다.
+- texture network는 만들지 않고 fallback color만 사용하며 Table에 `TEXTURE IGNORED`로 표시합니다.
+- metallic, roughness, opacity, emission, normal, displacement 등은 변환하지 않습니다.
+- 동일한 원본 USD material reference는 conversion cache를 통해 하나의 VRayMtl reference로 재사용합니다.
+- 기존 VRayMtl과 지원하지 않는 재질은 변경하지 않습니다.
+- `Override Glossiness`는 0.0~1.0의 V-Ray glossiness 값이며, `Override Reflection`은 RGB color입니다. 둘 다 이번 Apply에서 새로 생성되는 VRayMtl에만 적용됩니다.
+- Override가 OFF이면 USD roughness/metallic에서 값을 계산하지 않고 VRayMtl의 기본값을 유지합니다.
+- 동일한 정확한 이름에 서로 다른 diffuse color가 발견되면 `SAME NAME / DIFFERENT DIFFUSE` conflict로 Apply를 차단합니다.
+- V-Ray가 없거나 확인된 VRayMtl property를 사용할 수 없으면 scene을 변경하지 않고 오류를 표시합니다.
+- Analyze는 VRayMtl 생성이나 material reference 교체 없이 계획만 계산합니다.
+
+현재 설치 환경에서 확인해 사용하는 property는 USD의 `diffuseColor`, `diffuseColor_map`과 VRayMtl의 `Diffuse`, `Reflection`, `reflection_glossiness`, `brdf_useRoughness`입니다. Apply 직전에는 해당 class와 property를 다시 검증합니다.
 
 ## 처리 원칙
 
@@ -43,7 +61,7 @@ Apply 전체는 `Normalize Material IDs`라는 하나의 Undo 단위로 감쌉�
 - Object transform, pivot, object name
 - UV, smoothing group, normal
 - Modifier stack
-- 기존 material 이름과 속성
+- 기존 VRayMtl 및 변환 대상이 아닌 material의 이름과 속성
 - Master의 기존 Material ID
 
 ## 지원 범위와 제한
@@ -58,7 +76,7 @@ Apply 전체는 `Normalize Material IDs`라는 하나의 Undo 단위로 감쌉�
 
 ## 자동 검증
 
-`tests/LunarMaterialIDNormalizer_smoke.ms`를 Autodesk 3ds Max 2026.3.3 Batch에서 실행해 37개 검사가 통과했습니다. 검증 범위에는 요구된 A-F 시나리오, Analyze 무변경, case-sensitive matching, 단일 material Target, 실제 material reference append, modifier stack/transform/pivot/topology 보존, 한 번의 Undo 복원이 포함됩니다.
+`tests/LunarMaterialIDNormalizer_smoke.ms`를 Autodesk 3ds Max 2026.3.3 Batch에서 실행해 69개 검사가 통과했습니다. 기존 정규화 회귀 범위에 더해 USD 기본 변환, 두 Override의 적용 범위와 OFF 기본값 보존, shared reference cache, Multi/Sub container/ID 보존, diffuse conflict 차단, Convert OFF, texture 무시, USD 변환까지 포함한 한 번의 Undo 복원을 검증합니다.
 
 일반 3ds Max UI에서의 실제 클릭 흐름과 제작용 renderer/plugin material은 별도의 수동 확인 대상입니다.
 
