@@ -34,7 +34,7 @@ Scene Object 선택, Material Assignment, Material ID, Face Material ID, Multi/S
 
 ## 현재 환경에서 확인한 VRayMtl Property
 
-3ds Max 2026.3.3에 설치된 `VRayMtl`을 `getPropNames`로 조사하고 실제 읽기/쓰기 테스트에 사용한 이름입니다.
+3ds Max 2026.3.3에 설치된 `VRayMtl`을 `getPropNames`로 진단하고, `isProperty` 및 실제 읽기/쓰기 테스트로 확인한 이름입니다.
 
 | 의미 | 값 Property | Map Property | Map Enable Property |
 |---|---|---|---|
@@ -51,11 +51,11 @@ Reflection Surface 모드 스위치는 `brdf_useRoughness`입니다.
 
 Reflection Surface는 `brdf_useRoughness`를 먼저 원하는 모드로 설정한 뒤 `reflection_glossiness`에 사용자가 입력한 값을 그대로 기록합니다. 따라서 Roughness `0.40`을 임의 반전하지 않고 Roughness 모드의 `0.40`으로 저장합니다.
 
-Refraction UI는 명시적으로 Glossiness 의미입니다. 기존 재질의 `brdf_useRoughness`가 켜져 있으면 V-Ray의 전역 roughness 해석을 보존하면서 입력 Glossiness 의미가 유지되도록 `1.0 - value`를 `refraction_glossiness`에 저장합니다. 모드 스위치는 바꾸지 않습니다.
+Refraction Glossiness는 `refraction_glossiness`에 사용자가 입력한 값을 그대로 저장합니다. `1.0 - value` 반전을 하지 않으며 기존 `brdf_useRoughness` 모드도 바꾸지 않습니다.
 
 ## 버전 호환성과 안전 동작
 
-호환성 계층은 재질마다 `getPropNames`를 한 번 읽고 위 표의 정확한 이름만 대소문자 비구분으로 매칭합니다. 접두사나 유사 이름을 임의 검색하지 않습니다.
+호환성 계층은 String 또는 Name candidate를 Name으로 정규화한 뒤, 실제 Material Reference에 대한 `isProperty material propertyName` 결과를 최종 지원 기준으로 사용합니다. `getPropNames`는 Listener 진단 기능에서만 사용하며 resolver 판정에는 사용하지 않습니다. 접두사나 유사 이름을 임의 검색하지 않습니다.
 
 - 값 Property를 확인할 수 없으면 해당 항목만 `Unsupported`로 기록하고 계속합니다.
 - Map Property 또는 Enable Property를 확실히 확인할 수 없으면 맵은 유지합니다.
@@ -66,9 +66,18 @@ Refraction UI는 명시적으로 Glossiness 의미입니다. 기존 재질의 `b
 
 ## 검증 결과
 
-`tests/Lunar_VRayMtl_Batch_Override_smoke.ms`를 3ds Max 2026.3.3의 quiet/silent MAXScript 실행으로 수행했습니다.
+`tests/Lunar_VRayMtl_Batch_Override_smoke.ms`와 `tests/Lunar_VRayMtl_Batch_Override_sme_regression.ms`를 3ds Max 2026.3.3의 quiet/silent MAXScript 실행으로 수행했습니다.
 
-- 최종 결과: `Passed: 34`, `Failed: 0`
+- 전체 회귀 결과: `Passed: 37`, `Failed: 0`
+- 12개 실제 VRayMtl SME 파라미터별 결과: `Passed: 9`, `Failed: 0`
+- Base Color: `Success 12 | Unsupported 0 | Errors 0`
+- Reflection Color: `Success 12 | Unsupported 0 | Errors 0`
+- Surface: `Success 12 | Unsupported 0 | Errors 0`
+- Metalness: `Success 12 | Unsupported 0 | Errors 0`
+- Refraction Color: `Success 12 | Unsupported 0 | Errors 0`
+- Refract Gloss: `Success 12 | Unsupported 0 | Errors 0`
+- Direct `isProperty`: 7개 값/모드 Property 모두 지원 확인
+- Direct Diffuse set/get: 값 변경 및 원복 확인
 - 실제 V-Ray 값/모드/맵 Keep·Disable·Remove 검증
 - 체크하지 않은 값과 맵 보존 검증
 - 모든 Override OFF 무변경 검증

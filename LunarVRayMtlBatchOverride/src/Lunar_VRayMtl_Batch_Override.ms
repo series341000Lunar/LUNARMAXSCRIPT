@@ -56,7 +56,8 @@ struct LVMBOCoreStruct
 (
     /*
         Property specifications are semanticName, value property, map property, map-enable property.
-        These exact names were obtained from getPropNames on the installed VRayMtl build.
+        These exact names were obtained diagnostically from the installed VRayMtl build.
+        Runtime support is decided only by isProperty on the actual material reference.
         No prefix/suffix/fuzzy property search is performed.
     */
     propertySpecs = #(
@@ -177,13 +178,33 @@ struct LVMBOCoreStruct
         result
     ),
 
-    fn resolveExactProperty propertyNames exactName =
+    fn normalizePropName candidate =
     (
-        local result = undefined
-        local wantedName = toLower exactName
-        for propertyName in propertyNames while result == undefined do
-            if (toLower (propertyName as string)) == wantedName do result = propertyName
-        result
+        local propertyName = undefined
+        try
+        (
+            propertyName = if isKindOf candidate Name then candidate else (candidate as name)
+        )
+        catch (propertyName = undefined)
+        propertyName
+    ),
+
+    fn resolveProperty materialValue candidates =
+    (
+        local candidateValues = if isKindOf candidates Array then candidates else #(candidates)
+
+        for candidate in candidateValues do
+        (
+            local propertyName = normalizePropName candidate
+            local supported = false
+            if propertyName != undefined do
+            (
+                try (supported = isProperty materialValue propertyName) catch (supported = false)
+                if supported do return propertyName
+            )
+        )
+
+        undefined
     ),
 
     fn clampUnit value =
@@ -222,11 +243,11 @@ struct LVMBOCoreStruct
         errorText
     ),
 
-    fn handleAffectedMap materialValue propertyNames specValue mapMode =
+    fn handleAffectedMap materialValue specValue mapMode =
     (
         if mapMode == #keep then return #none
 
-        local mapProperty = resolveExactProperty propertyNames specValue[3]
+        local mapProperty = resolveProperty materialValue specValue[3]
         if mapProperty == undefined then return #unsupported
 
         local mapReference = undefined
@@ -235,7 +256,7 @@ struct LVMBOCoreStruct
 
         if mapMode == #disable then
         (
-            local enableProperty = resolveExactProperty propertyNames specValue[4]
+            local enableProperty = resolveProperty materialValue specValue[4]
             if enableProperty == undefined then return #unsupported
             try
             (
@@ -257,12 +278,12 @@ struct LVMBOCoreStruct
             #unsupported
     ),
 
-    fn setSimpleParameter materialValue propertyNames semanticName newValue mapMode =
+    fn setSimpleParameter materialValue semanticName newValue mapMode =
     (
         local specValue = getSpec semanticName
         if specValue == undefined then return #(#unsupported, #none)
 
-        local valueProperty = resolveExactProperty propertyNames specValue[2]
+        local valueProperty = resolveProperty materialValue specValue[2]
         if valueProperty == undefined then return #(#unsupported, #none)
 
         local valueSet = false
@@ -274,14 +295,14 @@ struct LVMBOCoreStruct
         catch (valueSet = false)
 
         if not valueSet then return #(#error, #none)
-        #(#success, handleAffectedMap materialValue propertyNames specValue mapMode)
+        #(#success, handleAffectedMap materialValue specValue mapMode)
     ),
 
-    fn setReflectionSurface materialValue propertyNames surfaceMode surfaceValue mapMode =
+    fn setReflectionSurface materialValue surfaceMode surfaceValue mapMode =
     (
         local specValue = getSpec #surface
-        local valueProperty = resolveExactProperty propertyNames specValue[2]
-        local modeProperty = resolveExactProperty propertyNames "brdf_useRoughness"
+        local valueProperty = resolveProperty materialValue specValue[2]
+        local modeProperty = resolveProperty materialValue #brdf_useRoughness
         if valueProperty == undefined or modeProperty == undefined then return #(#unsupported, #none)
 
         local oldValue = undefined
@@ -306,31 +327,14 @@ struct LVMBOCoreStruct
         )
 
         if not valueSet then return #(#error, #none)
-        #(#success, handleAffectedMap materialValue propertyNames specValue mapMode)
+        #(#success, handleAffectedMap materialValue specValue mapMode)
     ),
 
-    fn setRefractionGlossiness materialValue propertyNames glossinessValue mapMode =
+    fn setRefractionGlossiness materialValue glossinessValue mapMode =
     (
-        local specValue = getSpec #refractionGlossiness
-        local valueProperty = resolveExactProperty propertyNames specValue[2]
-        if valueProperty == undefined then return #(#unsupported, #none)
-
-        local storedValue = clampUnit glossinessValue
-        local modeProperty = resolveExactProperty propertyNames "brdf_useRoughness"
-
-        /* In the installed/verified V-Ray API, brdf_useRoughness changes all
-           glossiness values to roughness interpretation. Preserve that mode,
-           but store its inverse so this UI's Refraction Glossiness remains a
-           glossiness-semantic input. If the switch is absent, use the explicit
-           refraction_glossiness property directly. */
-        if modeProperty != undefined do
-        (
-            local roughnessMode = false
-            try (roughnessMode = getProperty materialValue modeProperty) catch (roughnessMode = false)
-            if roughnessMode do storedValue = 1.0 - storedValue
-        )
-
-        setSimpleParameter materialValue propertyNames #refractionGlossiness storedValue mapMode
+        /* The verified MAXScript property is an explicit refraction glossiness
+           slot. Store the user's value directly and do not alter roughness mode. */
+        setSimpleParameter materialValue #refractionGlossiness (clampUnit glossinessValue) mapMode
     ),
 
     fn makeResultRows =
@@ -385,32 +389,23 @@ struct LVMBOCoreStruct
                 result.skippedMaterials += 1
             else
             (
-                local propertyNames = #()
-                local propertiesReadable = true
-                try (propertyNames = getPropNames materialValue) catch (propertiesReadable = false)
+                if settings.baseColorEnabled do
+                    recordOutcome result.rows #baseColor (setSimpleParameter materialValue #baseColor settings.baseColor settings.mapMode)
 
-                if not propertiesReadable then
-                    result.skippedMaterials += 1
-                else
-                (
-                    if settings.baseColorEnabled do
-                        recordOutcome result.rows #baseColor (setSimpleParameter materialValue propertyNames #baseColor settings.baseColor settings.mapMode)
+                if settings.reflectionColorEnabled do
+                    recordOutcome result.rows #reflectionColor (setSimpleParameter materialValue #reflectionColor settings.reflectionColor settings.mapMode)
 
-                    if settings.reflectionColorEnabled do
-                        recordOutcome result.rows #reflectionColor (setSimpleParameter materialValue propertyNames #reflectionColor settings.reflectionColor settings.mapMode)
+                if settings.surfaceEnabled do
+                    recordOutcome result.rows #surface (setReflectionSurface materialValue settings.surfaceMode settings.surfaceValue settings.mapMode)
 
-                    if settings.surfaceEnabled do
-                        recordOutcome result.rows #surface (setReflectionSurface materialValue propertyNames settings.surfaceMode settings.surfaceValue settings.mapMode)
+                if settings.metalnessEnabled do
+                    recordOutcome result.rows #metalness (setSimpleParameter materialValue #metalness (clampUnit settings.metalnessValue) settings.mapMode)
 
-                    if settings.metalnessEnabled do
-                        recordOutcome result.rows #metalness (setSimpleParameter materialValue propertyNames #metalness (clampUnit settings.metalnessValue) settings.mapMode)
+                if settings.refractionColorEnabled do
+                    recordOutcome result.rows #refractionColor (setSimpleParameter materialValue #refractionColor settings.refractionColor settings.mapMode)
 
-                    if settings.refractionColorEnabled do
-                        recordOutcome result.rows #refractionColor (setSimpleParameter materialValue propertyNames #refractionColor settings.refractionColor settings.mapMode)
-
-                    if settings.refractionGlossinessEnabled do
-                        recordOutcome result.rows #refractionGlossiness (setRefractionGlossiness materialValue propertyNames settings.refractionGlossinessValue settings.mapMode)
-                )
+                if settings.refractionGlossinessEnabled do
+                    recordOutcome result.rows #refractionGlossiness (setRefractionGlossiness materialValue settings.refractionGlossinessValue settings.mapMode)
             )
         )
 

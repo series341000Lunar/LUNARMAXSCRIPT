@@ -74,6 +74,14 @@ try
     for propertyName in verifiedProperties while allVerifiedPropertiesExist do
         if not isProperty propertyProbe propertyName do allVerifiedPropertiesExist = false
     lvmboAssert allVerifiedPropertiesExist "Installed VRayMtl exposes every supported value/map property"
+    lvmboAssert (LunarVRayMtlBatchOverrideCore.resolveProperty propertyProbe "Diffuse" == #Diffuse) "String candidate normalizes to a supported Name property"
+    lvmboAssert (LunarVRayMtlBatchOverrideCore.resolveProperty propertyProbe #Diffuse == #Diffuse) "Name candidate resolves through isProperty"
+
+    directOldDiffuse = getProperty propertyProbe #Diffuse
+    setProperty propertyProbe #Diffuse (color 123 45 67)
+    directNewDiffuse = getProperty propertyProbe #Diffuse
+    setProperty propertyProbe #Diffuse directOldDiffuse
+    lvmboAssert (lvmboColorsEqual directNewDiffuse (color 123 45 67) and lvmboColorsEqual (getProperty propertyProbe #Diffuse) directOldDiffuse) "Direct Diffuse set/get succeeds and restores the old value"
 
     defaultSettings = LunarVRayMtlBatchOverrideCore.newSettings()
     lvmboAssert (not LunarVRayMtlBatchOverrideCore.hasAnyOverride defaultSettings) "All overrides are OFF by default"
@@ -179,14 +187,14 @@ try
     lvmboAssert (materialG.texmap_diffuse == diffuseMapG) "G Remove leaves unchecked diffuse map reference untouched"
     lvmboAssert ((LunarVRayMtlBatchOverrideCore.findResultRow resultG.rows #surface)[6] == 1) "G reports one removed map"
 
-    -- Refraction Glossiness keeps glossiness semantics in existing roughness mode.
+    -- Refraction Glossiness stores the explicit user value and preserves mode.
     materialRefGloss = lvmboMakeVRay "Refraction_Glossiness_Semantics"
     materialRefGloss.brdf_useRoughness = true
     settingsRefGloss = LunarVRayMtlBatchOverrideCore.newSettings()
     settingsRefGloss.refractionGlossinessEnabled = true
     settingsRefGloss.refractionGlossinessValue = 0.7
     LunarVRayMtlBatchOverrideCore.applyOverrides #(materialRefGloss) settingsRefGloss
-    lvmboAssert (materialRefGloss.brdf_useRoughness == true and lvmboFloatEqual materialRefGloss.refraction_glossiness 0.3) "Refraction Glossiness 0.70 is stored as 0.30 while V-Ray roughness interpretation remains active"
+    lvmboAssert (materialRefGloss.brdf_useRoughness == true and lvmboFloatEqual materialRefGloss.refraction_glossiness 0.7) "Refraction Glossiness 0.70 is stored directly while the existing mode remains unchanged"
 
     -- Acceptance J: no override means no value or map change.
     materialJ = lvmboMakeVRay "Acceptance_J"
