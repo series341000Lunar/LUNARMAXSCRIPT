@@ -90,6 +90,24 @@ fn lmnFaceIDs nodeValue =
     for faceIndex = 1 to polyop.getNumFaces nodeValue collect polyop.getFaceMatID nodeValue faceIndex
 )
 
+fn lmnFaceMaterialRefs nodeValue =
+(
+    local result = #()
+    local topMaterial = nodeValue.material
+    for faceIndex = 1 to polyop.getNumFaces nodeValue do
+    (
+        local faceID = polyop.getFaceMatID nodeValue faceIndex
+        local materialReference = undefined
+        if topMaterial != undefined and classOf topMaterial == Multimaterial do
+        (
+            for slotIndex = 1 to topMaterial.materialList.count while materialReference == undefined do
+                if topMaterial.materialIDList[slotIndex] == faceID do materialReference = topMaterial.materialList[slotIndex]
+        )
+        append result materialReference
+    )
+    result
+)
+
 fn lmnFindMaterialSlot materialValue materialName =
 (
     local foundIndex = 0
@@ -118,6 +136,22 @@ fn lmnPairValue pairs keyValue =
     for pairValue in pairs while result == "" do
         if pairValue.count >= 2 and pairValue[1] == keyValue do result = pairValue[2]
     result
+)
+
+fn lmnAZRegistryID previewValues materialName =
+(
+    local result = 0
+    for rowValue in previewValues[3] while result == 0 do
+        if rowValue[2] == materialName do result = rowValue[1]
+    result
+)
+
+fn lmnHasAZConflict previewValues conflictType =
+(
+    local found = false
+    for rowValue in previewValues[5] while not found do
+        if rowValue[1] == conflictType do found = true
+    found
 )
 
 fn lmnPointArraysEqual leftValues rightValues =
@@ -567,7 +601,7 @@ try
     reportSelectionBeforeLoadU = for nodeValue in selection collect nodeValue
     lmnAssert (LunarMaterialIDNormalizerRollout.loadReportFromPath reportPathU showViewer:false showErrors:false) "Load Report U loads the exported UTF-8 report"
     loadedSnapshotU = LunarMaterialIDNormalizerRollout.getLoadedReportSnapshot()
-    lmnAssert (loadedSnapshotU != undefined and loadedSnapshotU[1] == "1" and lmnPairValue loadedSnapshotU[2] "Tool Version" == "MK1") "Load Report U preserves version metadata"
+    lmnAssert (loadedSnapshotU != undefined and loadedSnapshotU[1] == "1" and lmnPairValue loadedSnapshotU[2] "Tool Version" == "MK2") "Load Report U preserves version metadata"
     lmnAssert (loadedSnapshotU[7].count > 0 and loadedSnapshotU[7][1][2] == "벽_한국어_材質" and loadedSnapshotU[8].count == 1 and loadedSnapshotU[8][1][1] == "ターゲット_오브젝트") "Load Report U preserves Unicode canonical and target values"
     lmnAssert (targetReportU.material == reportTargetMaterialBeforeLoadU and lmnArrayEquals (lmnFaceIDs targetReportU) reportTargetFacesBeforeLoadU and lmnArrayEquals (for nodeValue in selection collect nodeValue) reportSelectionBeforeLoadU) "Load Report U changes no scene material, face ID, or selection"
 
@@ -635,6 +669,249 @@ try
     max undo
     lmnAssert (masterK.material.materialList.count == oldMasterCountK) "K One Undo removes Master append"
     lmnAssert (targetK.material == oldTargetMatK and lmnArrayEquals (lmnFaceIDs targetK) oldFacesK) "K One Undo restores Target material and face IDs"
+
+    /* MK2 GLOBAL A-Z REINDEX acceptance tests. */
+
+    -- A: Basic global alphabetical IDs, slot order, face appearance, and read-only Analyze.
+    azMatA = lmnMakeMulti #("Steel_AZ_A", "Concrete_AZ_A", "Wood_AZ_A", "Glass_AZ_A") #(7,2,9,4)
+    azNodeA = lmnMakePoly "AZ_Basic_A" azMatA #(7,2,9,4,7,2)
+    azOldFacesA = lmnFaceIDs azNodeA
+    azOldAppearanceA = lmnFaceMaterialRefs azNodeA
+    LunarMaterialIDNormalizerRollout.clearMasterNode()
+    LunarMaterialIDNormalizerRollout.clearTargetNodes()
+    select azNodeA
+    lmnAssert (LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false recordOperation:true) "AZ A Basic Analyze succeeds without Master or Targets"
+    azPreviewA = LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()
+    lmnAssert (lmnAZRegistryID azPreviewA "Concrete_AZ_A" == 1 and lmnAZRegistryID azPreviewA "Glass_AZ_A" == 2 and lmnAZRegistryID azPreviewA "Steel_AZ_A" == 3 and lmnAZRegistryID azPreviewA "Wood_AZ_A" == 4) "AZ A builds one deterministic alphabetical registry"
+    lmnAssert (lmnArrayEquals (lmnFaceIDs azNodeA) azOldFacesA and lmnArrayEquals (lmnFaceMaterialRefs azNodeA) azOldAppearanceA) "AZ A Analyze is read-only"
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ A Apply succeeds"
+    lmnAssert (azMatA.materialList[1].name == "Concrete_AZ_A" and azMatA.materialIDList[1] == 1 and azMatA.materialList[4].name == "Wood_AZ_A" and azMatA.materialIDList[4] == 4) "AZ A reorders existing slots and assigns Global IDs"
+    lmnAssert (lmnArrayEquals (lmnFaceMaterialRefs azNodeA) azOldAppearanceA) "AZ A preserves per-face material appearance"
+
+    -- B: Case-insensitive ordering preserves original capitalization and is deterministic.
+    azMatB = lmnMakeMulti #("wood_AZ_B", "Concrete_AZ_B", "METAL_AZ_B", "glass_AZ_B") #(11,12,13,14)
+    azNodeB = lmnMakePoly "AZ_Case_B" azMatB #(11,12,13,14,11,12)
+    select azNodeB
+    lmnAssert (LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false) "AZ B Case-insensitive Analyze succeeds"
+    azPreviewB1 = LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()
+    lmnAssert (lmnAZRegistryID azPreviewB1 "Concrete_AZ_B" == 1 and lmnAZRegistryID azPreviewB1 "glass_AZ_B" == 2 and lmnAZRegistryID azPreviewB1 "METAL_AZ_B" == 3 and lmnAZRegistryID azPreviewB1 "wood_AZ_B" == 4) "AZ B ignores case while sorting"
+    LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false
+    azPreviewB2 = LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()
+    lmnAssert (azPreviewB1[3][1][2] == azPreviewB2[3][1][2] and azPreviewB1[3][4][2] == azPreviewB2[3][4][2]) "AZ B repeated Analyze is deterministic"
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex() and azMatB.materialList[2].name == "glass_AZ_B" and azMatB.materialList[3].name == "METAL_AZ_B") "AZ B preserves original capitalization"
+
+    -- C: Different old IDs across different containers receive the same Global IDs.
+    azSteelC1 = standardMaterial name:"Steel_AZ_C" diffuse:(color 90 90 90)
+    azConcreteC1 = standardMaterial name:"Concrete_AZ_C" diffuse:(color 120 120 120)
+    azSteelC2 = standardMaterial name:"steel_AZ_C" diffuse:(color 90 90 90)
+    azConcreteC2 = standardMaterial name:"concrete_AZ_C" diffuse:(color 120 120 120)
+    azMatC1 = lmnMakeMultiFromRefs #(azSteelC1, azConcreteC1) #(2,8)
+    azMatC2 = lmnMakeMultiFromRefs #(azSteelC2, azConcreteC2) #(19,1)
+    azNodeC1 = lmnMakePoly "AZ_DifferentIDs_C1" azMatC1 #(2,8,2,8,2,8)
+    azNodeC2 = lmnMakePoly "AZ_DifferentIDs_C2" azMatC2 #(19,1,19,1,19,1)
+    select #(azNodeC1, azNodeC2)
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ C Apply supports different old IDs across objects"
+    lmnAssert (azMatC1.materialIDList[lmnFindMaterialSlot azMatC1 "Steel_AZ_C"] == azMatC2.materialIDList[lmnFindMaterialSlot azMatC2 "steel_AZ_C"] and azMatC1.materialIDList[lmnFindMaterialSlot azMatC1 "Concrete_AZ_C"] == azMatC2.materialIDList[lmnFindMaterialSlot azMatC2 "concrete_AZ_C"]) "AZ C assigns the same IDs to case-insensitive names"
+
+    -- D: Material subsets keep sparse Global IDs without creating missing slots.
+    azMatD1 = lmnMakeMulti #("A_AZ_D", "D_AZ_D") #(7,9)
+    azMatD2 = lmnMakeMulti #("B_AZ_D", "C_AZ_D") #(3,5)
+    azNodeD1 = lmnMakePoly "AZ_Subset_D1" azMatD1 #(7,9,7,9,7,9)
+    azNodeD2 = lmnMakePoly "AZ_Subset_D2" azMatD2 #(3,5,3,5,3,5)
+    select #(azNodeD1, azNodeD2)
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ D Apply supports material subsets"
+    lmnAssert (azMatD1.materialList.count == 2 and azMatD1.materialIDList[1] == 1 and azMatD1.materialIDList[2] == 4 and azMatD2.materialList.count == 2 and azMatD2.materialIDList[1] == 2 and azMatD2.materialIDList[2] == 3) "AZ D keeps sparse Global IDs and creates no missing slots"
+
+    -- E: Original face BitArray snapshots protect an ID swap.
+    azMatE = lmnMakeMulti #("B_AZ_E", "A_AZ_E") #(1,2)
+    azNodeE = lmnMakePoly "AZ_Swap_E" azMatE #(1,2,1,2,1,2)
+    azAppearanceE = lmnFaceMaterialRefs azNodeE
+    select azNodeE
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ E ID-swap Apply succeeds"
+    lmnAssert (azMatE.materialList[1].name == "A_AZ_E" and azMatE.materialIDList[1] == 1 and azMatE.materialList[2].name == "B_AZ_E" and azMatE.materialIDList[2] == 2 and lmnArrayEquals (lmnFaceMaterialRefs azNodeE) azAppearanceE) "AZ E remaps from original face snapshots without double-changing swapped IDs"
+
+    -- F/G: Shared Multi/Sub succeeds only when every user can be remapped.
+    azSharedMatF = lmnMakeMulti #("B_AZ_F", "A_AZ_F") #(8,3)
+    azSharedF1 = lmnMakePoly "AZ_Shared_F1" azSharedMatF #(8,3,8,3,8,3)
+    azSharedF2 = lmnMakePoly "AZ_Shared_F2" azSharedMatF #(3,8,3,8,3,8)
+    azSharedF3 = lmnMakePoly "AZ_Shared_F3" azSharedMatF #(8,8,3,3,8,3)
+    azAppearanceF1 = lmnFaceMaterialRefs azSharedF1
+    azAppearanceF2 = lmnFaceMaterialRefs azSharedF2
+    azAppearanceF3 = lmnFaceMaterialRefs azSharedF3
+    select #(azSharedF1, azSharedF2, azSharedF3)
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ F shared Multi/Sub Apply succeeds when all users are selected"
+    lmnAssert (azSharedF1.material == azSharedMatF and azSharedF2.material == azSharedMatF and azSharedF3.material == azSharedMatF and azSharedMatF.materialList[1].name == "A_AZ_F") "AZ F preserves one shared Multi/Sub reference and reorders it once"
+    lmnAssert (lmnArrayEquals (lmnFaceMaterialRefs azSharedF1) azAppearanceF1 and lmnArrayEquals (lmnFaceMaterialRefs azSharedF2) azAppearanceF2 and lmnArrayEquals (lmnFaceMaterialRefs azSharedF3) azAppearanceF3) "AZ F remaps every shared user's faces without appearance change"
+
+    azSharedMatG = lmnMakeMulti #("B_AZ_G", "A_AZ_G") #(8,3)
+    azSharedG1 = lmnMakePoly "AZ_Shared_G1" azSharedMatG #(8,3,8,3,8,3)
+    azSharedG2 = lmnMakePoly "AZ_Shared_G2" azSharedMatG #(3,8,3,8,3,8)
+    azSharedG3 = lmnMakePoly "AZ_Shared_G3_EXTERNAL" azSharedMatG #(8,8,3,3,8,3)
+    azOldIDsG = for value in azSharedMatG.materialIDList collect value
+    azOldFacesG = lmnFaceIDs azSharedG1
+    select #(azSharedG1, azSharedG2)
+    lmnAssert (not LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false) "AZ G Analyze blocks an unselected shared Multi/Sub user"
+    azPreviewG = LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()
+    lmnAssert (lmnHasAZConflict azPreviewG "EXTERNAL MATERIAL USER" and (findString azPreviewG[5][1][3] "AZ_Shared_G3_EXTERNAL") != undefined) "AZ G identifies the unselected EXTERNAL MATERIAL USER by name"
+    lmnAssert (not LunarMaterialIDNormalizerRollout.applyGlobalAZReindex() and lmnArrayEquals (for value in azSharedMatG.materialIDList collect value) azOldIDsG and lmnArrayEquals (lmnFaceIDs azSharedG1) azOldFacesG) "AZ G blocked Apply makes no scene change"
+
+    -- H/I: Different containers are updated independently; single materials are skipped.
+    azMatH1 = lmnMakeMulti #("Steel_AZ_H", "Concrete_AZ_H") #(7,2)
+    azMatH2 = lmnMakeMulti #("Wood_AZ_H", "Glass_AZ_H") #(12,4)
+    azNodeH1 = lmnMakePoly "AZ_Containers_H1" azMatH1 #(7,2,7,2,7,2)
+    azNodeH2 = lmnMakePoly "AZ_Containers_H2" azMatH2 #(12,4,12,4,12,4)
+    select #(azNodeH1, azNodeH2)
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ H Apply supports different Multi/Sub containers"
+    lmnAssert (azNodeH1.material == azMatH1 and azNodeH2.material == azMatH2 and azMatH1 != azMatH2 and azMatH1.materialList.count == 2 and azMatH2.materialList.count == 2) "AZ H preserves existing containers and creates no Multi/Sub"
+
+    azMatI = lmnMakeMulti #("B_AZ_I", "A_AZ_I") #(5,6)
+    azNodeI = lmnMakePoly "AZ_Multi_I" azMatI #(5,6,5,6,5,6)
+    azSingleMaterialI = standardMaterial name:"Single_AZ_I"
+    azSingleNodeI = lmnMakePoly "AZ_Single_I" azSingleMaterialI #(1,1,1,1,1,1)
+    select #(azNodeI, azSingleNodeI)
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ I Apply skips a single-material object while processing Multi/Sub"
+    lmnAssert (azSingleNodeI.material == azSingleMaterialI and classOf azSingleNodeI.material != Multimaterial) "AZ I creates no Multi/Sub for a single-material object"
+
+    -- J/K/L/M: Safety conflicts block without guessing or merging.
+    azMatJ = lmnMakeMulti #("A_AZ_J", "B_AZ_J") #(6,6)
+    azNodeJ = lmnMakePoly "AZ_DuplicateID_J" azMatJ #(6,6,6,6,6,6)
+    select azNodeJ
+    lmnAssert (not LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false and lmnHasAZConflict (LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()) "DUPLICATE MATERIAL ID") "AZ J duplicate Material ID blocks Analyze"
+    lmnAssert (not LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ J duplicate Material ID blocks Apply"
+
+    azMatK2 = lmnMakeMulti #("A_AZ_K") #(1)
+    azNodeK2 = lmnMakePoly "AZ_UndefinedFace_K" azMatK2 #(5,5,5,5,5,5)
+    select azNodeK2
+    lmnAssert (not LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false and lmnHasAZConflict (LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()) "UNDEFINED FACE MATERIAL ID") "AZ K undefined face Material ID blocks safely"
+
+    azMatL = lmnMakeMulti #("Metal_AZ_L", "metal_AZ_L") #(1,2)
+    azNodeL = lmnMakePoly "AZ_DuplicateName_L" azMatL #(1,2,1,2,1,2)
+    select azNodeL
+    lmnAssert (not LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false and lmnHasAZConflict (LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()) "DUPLICATE MATERIAL NAME IN MULTISUB") "AZ L duplicate case-insensitive name in one Multi/Sub blocks"
+
+    azVRayM = lmnMakeVRay "Conflict_AZ_M"
+    azPhysicalM = lmnMakePhysical "conflict_AZ_M"
+    azMatM1 = lmnMakeMultiFromRefs #(azVRayM) #(1)
+    azMatM2 = lmnMakeMultiFromRefs #(azPhysicalM) #(2)
+    azNodeM1 = lmnMakePoly "AZ_ClassConflict_M1" azMatM1 #(1,1,1,1,1,1)
+    azNodeM2 = lmnMakePoly "AZ_ClassConflict_M2" azMatM2 #(2,2,2,2,2,2)
+    select #(azNodeM1, azNodeM2)
+    lmnAssert (not LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false and lmnHasAZConflict (LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()) "CLASS CONFLICT") "AZ M incompatible classes with one case-insensitive name block"
+
+    azColorM1 = standardMaterial name:"Color_AZ_M2" diffuse:(color 20 30 40)
+    azColorM2 = standardMaterial name:"color_AZ_M2" diffuse:(color 180 190 200)
+    azColorMatM1 = lmnMakeMultiFromRefs #(azColorM1) #(4)
+    azColorMatM2 = lmnMakeMultiFromRefs #(azColorM2) #(8)
+    azColorNodeM1 = lmnMakePoly "AZ_ColorConflict_M1" azColorMatM1 #(4,4,4,4,4,4)
+    azColorNodeM2 = lmnMakePoly "AZ_ColorConflict_M2" azColorMatM2 #(8,8,8,8,8,8)
+    select #(azColorNodeM1, azColorNodeM2)
+    lmnAssert (not LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false and lmnHasAZConflict (LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()) "COLOR CONFLICT") "AZ M2 incompatible diffuse colors with one case-insensitive name block"
+
+    -- Distinct suffixes are never fuzzy-merged.
+    azMatFuzzy = lmnMakeMulti #("Concrete_AZ_Fuzzy", "Concrete_AZ_Fuzzy.001", "Concrete_AZ_Fuzzy_01") #(9,3,7)
+    azNodeFuzzy = lmnMakePoly "AZ_NoFuzzy" azMatFuzzy #(9,3,7,9,3,7)
+    select azNodeFuzzy
+    lmnAssert (LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false and (LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues())[3].count == 3) "AZ exact key keeps .001 and _01 suffix names distinct"
+
+    -- Empty slots are preserved when safe and block when a face relies on one.
+    azMatEmpty = multimaterial numsubs:3
+    azEmptyB = standardMaterial name:"B_AZ_Empty"
+    azEmptyA = standardMaterial name:"A_AZ_Empty"
+    azMatEmpty.materialList[1] = azEmptyB
+    azMatEmpty.materialIDList[1] = 7
+    azMatEmpty.names[1] = "B_AZ_Empty"
+    azMatEmpty.materialList[2] = undefined
+    azMatEmpty.materialIDList[2] = 99
+    azMatEmpty.names[2] = "EMPTY_KEEP"
+    azMatEmpty.materialList[3] = azEmptyA
+    azMatEmpty.materialIDList[3] = 2
+    azMatEmpty.names[3] = "A_AZ_Empty"
+    azNodeEmpty = lmnMakePoly "AZ_EmptySafe" azMatEmpty #(7,2,7,2,7,2)
+    select azNodeEmpty
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ safe empty-slot Multi/Sub reindexes"
+    lmnAssert (azMatEmpty.materialList.count == 3 and azMatEmpty.materialList[1] == azEmptyA and azMatEmpty.materialList[2] == azEmptyB and azMatEmpty.materialList[3] == undefined and azMatEmpty.materialIDList[3] == 99 and azMatEmpty.names[3] == "EMPTY_KEEP") "AZ preserves a safe empty slot after sorted non-empty slots"
+
+    azMatEmptyFace = multimaterial numsubs:2
+    azMatEmptyFace.materialList[1] = standardMaterial name:"A_AZ_EmptyFace"
+    azMatEmptyFace.materialIDList[1] = 1
+    azMatEmptyFace.materialList[2] = undefined
+    azMatEmptyFace.materialIDList[2] = 99
+    azNodeEmptyFace = lmnMakePoly "AZ_EmptyFaceBlocked" azMatEmptyFace #(99,99,99,99,99,99)
+    select azNodeEmptyFace
+    lmnAssert (not LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false and lmnHasAZConflict (LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()) "UNDEFINED FACE MATERIAL ID") "AZ blocks a face that uses an empty slot ID"
+
+    -- Distinct mixed material classes are supported without conversion.
+    azMixedVRay = lmnMakeVRay "A_AZ_Mixed"
+    azMixedPhysical = lmnMakePhysical "B_AZ_Mixed"
+    azMixedStandard = standardMaterial name:"C_AZ_Mixed"
+    azMixedMat = lmnMakeMultiFromRefs #(azMixedStandard, azMixedVRay, azMixedPhysical) #(7,9,3)
+    azMixedNode = lmnMakePoly "AZ_MixedClasses" azMixedMat #(7,9,3,7,9,3)
+    select azMixedNode
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ supports distinct VRay, Physical, and Standard sub-material classes"
+    lmnAssert (azMixedMat.materialList[1] == azMixedVRay and azMixedMat.materialList[2] == azMixedPhysical and azMixedMat.materialList[3] == azMixedStandard) "AZ mixed-class operation preserves every material reference"
+
+    -- Apply must distrust a stale successful preview and validate live face IDs again.
+    azFreshMat = lmnMakeMulti #("B_AZ_Fresh", "A_AZ_Fresh") #(7,2)
+    azFreshNode = lmnMakePoly "AZ_FreshValidate" azFreshMat #(7,2,7,2,7,2)
+    select azFreshNode
+    lmnAssert (LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false) "AZ fresh-validation setup Analyze succeeds"
+    polyop.setFaceMatID azFreshNode #{1} 99
+    azFreshIDsBefore = for value in azFreshMat.materialIDList collect value
+    lmnAssert (not LunarMaterialIDNormalizerRollout.applyGlobalAZReindex() and lmnArrayEquals (for value in azFreshMat.materialIDList collect value) azFreshIDsBefore and polyop.getFaceMatID azFreshNode 1 == 99) "AZ Apply performs fresh Analyze and blocks stale invalid face state without changes"
+
+    -- N/O: A-Z requires no Master/Targets and preserves an existing unrelated scope.
+    LunarMaterialIDNormalizerRollout.clearMasterNode()
+    LunarMaterialIDNormalizerRollout.clearTargetNodes()
+    azMatN = lmnMakeMulti #("B_AZ_N", "A_AZ_N") #(9,4)
+    azNodeN = lmnMakePoly "AZ_NoScope_N" azMatN #(9,4,9,4,9,4)
+    select azNodeN
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ N works with Master and Targets empty"
+
+    azRegisteredMasterMatO = lmnMakeMulti #("Registered_AZ_O") #(1)
+    azRegisteredTargetMatO = lmnMakeMulti #("Registered_AZ_O") #(7)
+    azRegisteredMasterO = lmnMakePoly "AZ_Registered_Master_O" azRegisteredMasterMatO #(1,1,1,1,1,1)
+    azRegisteredTargetO = lmnMakePoly "AZ_Registered_Target_O" azRegisteredTargetMatO #(7,7,7,7,7,7)
+    lmnPrepare azRegisteredMasterO #(azRegisteredTargetO)
+    azUnrelatedMatO = lmnMakeMulti #("Z_AZ_O", "Y_AZ_O") #(20,10)
+    azUnrelatedO = lmnMakePoly "AZ_Unrelated_O" azUnrelatedMatO #(20,10,20,10,20,10)
+    select azUnrelatedO
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ O applies only to current selection while Master/Targets exist"
+    lmnAssert (azRegisteredMasterO.material == azRegisteredMasterMatO and azRegisteredTargetO.material == azRegisteredTargetMatO and LunarMaterialIDNormalizerRollout.analyzeAll updateUI:false) "AZ O preserves registered Master/Target state"
+
+    -- P: One Undo restores slots, IDs, names, and face appearance.
+    azMatP = lmnMakeMulti #("C_AZ_P", "A_AZ_P", "B_AZ_P") #(9,3,7)
+    azMatP.names[1] = "(9)"
+    azMatP.names[2] = "(3)"
+    azMatP.names[3] = "(7)"
+    azNodeP = lmnMakePoly "AZ_Undo_P" azMatP #(9,3,7,9,3,7)
+    azOldMaterialsP = for value in azMatP.materialList collect value
+    azOldIDsP = for value in azMatP.materialIDList collect value
+    azOldNamesP = for value in azMatP.names collect value
+    azOldFacesP = lmnFaceIDs azNodeP
+    azOldAppearanceP = lmnFaceMaterialRefs azNodeP
+    select azNodeP
+    clearUndoBuffer()
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ P Apply succeeds before Undo"
+    max undo
+    lmnAssert (lmnArrayEquals (for value in azMatP.materialList collect value) azOldMaterialsP and lmnArrayEquals (for value in azMatP.materialIDList collect value) azOldIDsP and lmnArrayEquals (for value in azMatP.names collect value) azOldNamesP) "AZ P One Undo restores Multi/Sub order, IDs, and names"
+    lmnAssert (lmnArrayEquals (lmnFaceIDs azNodeP) azOldFacesP and lmnArrayEquals (lmnFaceMaterialRefs azNodeP) azOldAppearanceP) "AZ P One Undo restores face IDs and appearance"
+
+    -- MK2 report sections are optional, UTF-8, loadable, and face dumps remain absent.
+    azReportPath = "C:\\tmp\\lmn-mk2-az-report.txt"
+    try (deleteFile azReportPath) catch()
+    select azNodeA
+    lmnAssert (LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false recordOperation:true) "AZ Report Analyze succeeds"
+    lmnAssert (LunarMaterialIDNormalizerRollout.exportReportToPath azReportPath) "AZ Report UTF-8 export succeeds"
+    azReportText = (dotNetClass "System.IO.File").ReadAllText azReportPath
+    lmnAssert ((findString azReportText "Last Operation: GLOBAL A-Z ANALYZE") != undefined and (findString azReportText "[GLOBAL A-Z REINDEX]") != undefined and (findString azReportText "[PER OBJECT A-Z REMAP]") != undefined) "AZ Report contains operation and optional MK2 sections"
+    azParsedReport = LunarMaterialIDNormalizerRollout.parseReportText azReportText
+    lmnAssert (azParsedReport[1] and azParsedReport[3][15][3].count == 4 and azParsedReport[3][16].count == 1) "AZ Report loader parses optional Global and per-object sections"
+
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ Report Apply produces a reindex operation snapshot"
+    lmnAssert (LunarMaterialIDNormalizerRollout.exportReportToPath azReportPath) "AZ Reindex Report export succeeds"
+    azReindexReportText = (dotNetClass "System.IO.File").ReadAllText azReportPath
+    lmnAssert ((findString azReindexReportText "Last Operation: GLOBAL A-Z REINDEX") != undefined and (findString azReindexReportText "REINDEXED") != undefined) "AZ Reindex Report records operation and REINDEXED status"
+    try (deleteFile azReportPath) catch()
 )
 catch
 (

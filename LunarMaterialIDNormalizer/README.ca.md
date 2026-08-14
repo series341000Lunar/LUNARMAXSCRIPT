@@ -1,4 +1,4 @@
-# Lunar Material ID Normalizer MK1
+# Lunar Material ID Normalizer MK2
 
 [한국어](README.md) · [Català](README.ca.md)
 
@@ -23,6 +23,22 @@ La interfície s'obre i funciona amb aquest únic fitxer de script.
 `Convert Materials Only` és independent del registre de Master/Targets. En prémer el botó, només llegeix la scene selection actual i hi aplica la conversió USD → VRayMtl i, opcionalment, la sincronització dels noms dels slots. No fa canonical append, no modifica els Material ID de les cares, no normalitza Targets ni assigna el material del Master; així, el resultat de la conversió es pot inspeccionar abans a Slate Material Editor. Si no hi ha cap objecte seleccionat, no modifica la scene i mostra `ERROR: Select one or more objects to convert.`.
 
 L'Apply complet, incloses la conversió USD, l'append, el remap dels face ID i l'assignació del material del Master, queda agrupat en una única operació Undo anomenada `Convert USD and Normalize Material IDs`.
+
+## GLOBAL A-Z REINDEX
+
+`Global A-Z Reindex...` de MK2 és una operació basada en la selecció i completament independent de la normalització existent de Master/Targets. Obriu-la, executeu `Analyze Selection` sobre la selecció actual, reviseu el registre global i el remap per objecte, i després executeu `Apply Reindex`.
+
+- Només llegeix els nodes seleccionats compatibles amb Multi/Sub + Editable Poly; no necessita ni modifica els Master/Targets registrats.
+- Reuneix els noms de tots els submaterials no buits en un únic registre global sense distingir majúscules/minúscules, els ordena amb `.NET OrdinalIgnoreCase` i assigna Global ID `1..N`. Es conserva la capitalització del nom de material existent.
+- La comparació utilitza únicament el string complet exacte. `Concrete`, `Concrete.001` i `Concrete_01` són noms diferents; no s'eliminen sufixos ni s'apliquen coincidències fuzzy o parcials.
+- Només reordena els contenidors Multi/Sub i les referències de submaterial existents. No crea slots per a Global ID absents, ni crea, clona o converteix materials.
+- Els slots no buits de cada Multi/Sub s'ordenen segons el Global ID corresponent, i `materialIDList` i el nom del slot se sincronitzen conjuntament. Els slots buits segurs es conserven; un slot buit que col·lideixi amb un Global ID nou o que sigui utilitzat per una face bloqueja l'operació.
+- Els face ID es remapen una sola vegada a partir dels Face BitArray snapshot originals i d'un lookup numèric per objecte, de manera que els intercanvis d'ID no depenen d'estats intermedis.
+- Una diferència de raw material class o de diffuse comparable dins d'un mateix nom sense distingir majúscules/minúscules bloqueja tota l'operació. També la bloquegen els noms duplicats només per capitalització dins d'un Multi/Sub, els Material ID duplicats i els face ID no definits.
+- Si diversos nodes compatibles comparteixen una mateixa referència Multi/Sub, aquesta només es reordena una vegada quan tots els usuaris estan seleccionats. Un usuari no seleccionat o un usuari seleccionat no compatible bloqueja amb `EXTERNAL MATERIAL USER`.
+- Els nodes amb material únic, sense material o que no són Editable Poly s'ometen; no es converteixen automàticament ni se'ls crea cap contenidor.
+- Just abans d'Apply es torna a executar Analyze sobre la selecció i la scene actuals, i tots els canvis dels arrays de material i dels face ID queden en una única operació Undo anomenada `Global A-Z Material Reindex`.
+- No es modifiquen topology, transform, pivot, object name, UV, smoothing group, normal, modifier stack ni els noms, classes o propietats dels submaterials existents.
 
 ## Preprocessament USD → VRayMtl
 
@@ -66,6 +82,7 @@ L'Apply complet, incloses la conversió USD, l'append, el remap dels face ID i l
 - `Auto Export After Operation` està desactivat per defecte. Si s'activa, desa l'informe després que un Convert Only o Normalize/Apply correcte hagi actualitzat la UI.
 - Per a una scene desada s'utilitza automàticament la seva carpeta; per a una scene no desada, la carpeta d'exportació de 3ds Max.
 - El nom per defecte segueix el format `<SceneName>_MaterialNormalize_<Operation>_<YYYYMMDD_HHMMSS>.txt`.
+- Els informes d'Analyze/Apply de Global A-Z registren l'operation com a `GLOBAL A-Z ANALYZE` o `GLOBAL A-Z REINDEX` i afegeixen les seccions opcionals `[GLOBAL A-Z REINDEX]` i `[PER OBJECT A-Z REMAP]`.
 
 ## Càrrega d'informes
 
@@ -73,7 +90,7 @@ L'Apply complet, incloses la conversió USD, l'append, el remap dels face ID i l
 - Només s'accepten fitxers on la primera línia significativa sigui exactament `Lunar Material ID Normalizer Report`.
 - Es llegeixen tant els informes amb `Report Format Version: 1` com els informes legacy sense aquesta línia si les seccions existents es poden reconèixer; aquests darrers s'interpreten com a format 1.
 - El parser admet salts de línia CRLF/LF, capçaleres `[SECTION]` explícites i taules separades per tabuladors. Les seccions opcionals absents, les files truncades i els enters no vàlids es conserven com a text sempre que sigui possible i es mostren com a `PARSER WARNING`.
-- El contingut carregat es consulta en un visor modeless separat, `LOADED REPORT — READ ONLY`, amb les pestanyes Summary, Canonical Materials, Target Remap, Conversions, Appended i Conflicts / Warnings.
+- El contingut carregat es consulta en un visor modeless separat, `LOADED REPORT — READ ONLY`, amb les pestanyes Summary, Canonical Materials, Target Remap, Conversions, Appended i Conflicts / Warnings. Quan hi ha les seccions opcionals de MK2, també es mostren a les pestanyes Global A-Z i Per-Object A-Z; els informes MK1 existents es continuen llegint amb aquestes pestanyes opcionals buides.
 - A la pestanya Target Remap es pot escollir un Target desat a l'informe; també hi ha `Open Another Report...` i `Close`.
 - El snapshot carregat només conserva strings i arrays de valors. No cerca ni referencia scene nodes, i no afecta la selection actual, Master/Targets, Analyze, `Convert Materials Only` ni `Normalize / Apply`.
 
@@ -118,11 +135,11 @@ Aquesta eina no modifica intencionadament els elements següents:
 
 ## Validació automatitzada
 
-S'han executat `tests/LunarMaterialIDNormalizer_smoke.ms` amb Autodesk 3ds Max 2026.3.3 Batch i han passat 115 comprovacions. A més de la regressió de normalització existent, es verifiquen la conversió USD bàsica, l'abast dels dos Override i la conservació dels valors per defecte quan estan desactivats, la shared reference cache, la conservació del contenidor/ID Multi/Sub, el bloqueig de class/color conflicts, Convert OFF, la ignorància de textures, la independència respecte de Master/Targets, la selecció múltiple, la protecció dels VRay existents, la garantia de no normalització i l'Undo de `Convert Materials Only` basat en selection, la sincronització dels noms dels slots, el report seed path i els informes UTF-8 amb caràcters coreans i japonesos, el parsing de format-version/CRLF/LF/legacy/malformed/optional-section, el rebuig de fitxers no relacionats i la independència entre el load snapshot i Analyze/Convert Only/Normalize.
+S'han executat `tests/LunarMaterialIDNormalizer_smoke.ms` amb Autodesk 3ds Max 2026.3.3 Batch i han passat 168 comprovacions. Es conserva tota la regressió MK1, incloses la conversió USD i la independència del report loader, i es verifiquen per a Global A-Z l'ordenació determinista sense distingir majúscules/minúscules, la clau de nom exacta, els ID existents diferents i els subconjunts, els intercanvis d'ID, els contenidors Multi/Sub compartits i separats, l'omissió de material únic, el bloqueig d'ID duplicats, face ID no definits, ús de slots buits, noms duplicats i conflictes de class/color, la conservació de slots buits segurs i de referències de classes de material mixtes, el fresh Analyze, la independència entre selecció actual i Master/Targets, l'Undo d'un sol pas i l'exportació/càrrega de les seccions opcionals MK2.
 
-Un probe de la GUI de 3ds Max ha confirmat l'obertura real del quadre de diàleg Save File i del quadre Open File de Load Report, que Cancel de Load no executa cap acció, i la visualització del visor modeless de només lectura. La funció de generació de l'informe i el contingut UTF-8 s'han verificat amb Batch.
+Un probe de la GUI de 3ds Max ha confirmat l'obertura real del quadre de diàleg Save File i del quadre Open File de Load Report, que Cancel de Load no executa cap acció, i la visualització del visor modeless de només lectura. El probe MK2 també ha confirmat la creació real de les pestanyes Global Registry, Per-Object Preview i Conflicts / Skipped de la finestra Global A-Z, i de les pestanyes Global A-Z i Per-Object A-Z del visor d'informes. La funció de generació de l'informe i el contingut UTF-8 s'han verificat amb Batch.
 
-Aquesta versió queda congelada com a MK1 d'acord amb l'abast de regressió anterior. Les funcions experimentals posteriors s'han de tractar separadament del comportament verificat de MK1.
+MK2 manté el comportament congelat de MK1 i hi afegeix el workflow independent Global A-Z.
 
 ## Procediment de prova breu
 

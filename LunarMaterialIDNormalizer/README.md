@@ -1,4 +1,4 @@
-# Lunar Material ID Normalizer MK1
+# Lunar Material ID Normalizer MK2
 
 [한국어](README.md) · [Català](README.ca.md)
 
@@ -23,6 +23,22 @@ Cinema 4D 또는 USD에서 가져온 오브젝트의 `USD Preview Surface`를 �
 `Convert Materials Only`는 Master/Target 등록과 독립적입니다. 버튼을 누르는 순간의 현재 scene selection만 읽어 USD → VRayMtl 변환과 선택적인 slot-name 동기화를 실행합니다. Canonical append, face Material ID 변경, Target 정규화, Master material 할당은 수행하지 않으므로 Slate Material Editor에서 변환 결과를 먼저 검사할 수 있습니다. 선택된 객체가 없으면 scene을 변경하지 않고 `ERROR: Select one or more objects to convert.`를 표시합니다.
 
 USD 변환, append, face ID remap, Master material 할당을 포함한 Apply 전체는 `Convert USD and Normalize Material IDs`라는 하나의 Undo 단위로 감쌉니다.
+
+## GLOBAL A-Z REINDEX
+
+MK2의 `Global A-Z Reindex...`는 기존 Master/Targets 정규화와 완전히 독립된 선택 기반 작업입니다. 버튼을 열고 현재 선택을 `Analyze Selection`한 다음 전역 레지스트리와 오브젝트별 remap을 확인하고 `Apply Reindex`를 실행합니다.
+
+- 현재 선택된 지원 대상 Multi/Sub + Editable Poly 노드만 읽으며, 등록된 Master/Targets를 요구하거나 변경하지 않습니다.
+- 모든 선택 대상의 비어 있지 않은 sub-material 이름을 대소문자 구분 없이 하나의 전역 레지스트리로 합치고 `.NET OrdinalIgnoreCase` 순서로 정렬해 Global ID `1..N`을 부여합니다. 대소문자 표기는 기존 재질 이름 그대로 보존합니다.
+- 이름 비교는 정확한 전체 문자열만 사용합니다. `Concrete`, `Concrete.001`, `Concrete_01`은 서로 다른 이름이며 suffix 제거, fuzzy/부분 일치를 하지 않습니다.
+- 기존 Multi/Sub container와 기존 sub-material reference만 재배열합니다. 누락된 Global ID slot을 만들거나 재질을 생성·복제·변환하지 않습니다.
+- 각 Multi/Sub의 비어 있지 않은 slot은 해당 Global ID 순서로 정렬되고 `materialIDList`와 slot name이 함께 동기화됩니다. 안전한 빈 slot은 보존하며, 새 Global ID와 충돌하거나 face가 사용 중인 빈 slot은 작업을 차단합니다.
+- face ID는 Apply 전 원본 face BitArray snapshot과 오브젝트별 숫자 lookup을 사용해 한 번만 remap하므로 ID 교환도 중간 상태의 영향을 받지 않습니다.
+- 같은 대소문자 무시 이름에서 raw material class가 다르거나 비교 가능한 diffuse가 다르면 전체 작업을 차단합니다. 하나의 Multi/Sub 안에 대소문자만 다른 중복 이름, 중복 Material ID, 정의되지 않은 face ID도 차단합니다.
+- 하나의 Multi/Sub reference를 여러 지원 노드가 공유할 때는 그 모든 사용자가 현재 선택에 포함된 경우에만 한 번 재배열합니다. 선택되지 않은 사용자나 선택된 비지원 사용자가 있으면 `EXTERNAL MATERIAL USER`로 차단합니다.
+- 단일 재질 노드, 재질 없는 노드, 비 Editable Poly 노드는 건너뛰며 자동 변환하거나 container를 만들지 않습니다.
+- Apply 직전에 selection과 장면을 새로 Analyze하고, material 배열과 face ID 변경 전체를 `Global A-Z Material Reindex`라는 하나의 Undo 단위로 처리합니다.
+- topology, transform, pivot, object name, UV, smoothing group, normal, modifier stack과 기존 sub-material의 이름·class·속성은 변경하지 않습니다.
 
 ## USD → VRayMtl 전처리
 
@@ -66,6 +82,7 @@ USD 변환, append, face ID remap, Master material 할당을 포함한 Apply 전
 - `Auto Export After Operation`은 기본 OFF입니다. ON이면 성공한 Convert Only 또는 Normalize/Apply가 UI를 refresh한 뒤 보고서를 저장합니다.
 - 저장된 scene은 scene 폴더, 미저장 scene은 3ds Max export 폴더를 자동 보고서 위치로 사용합니다.
 - 기본 파일명은 `<SceneName>_MaterialNormalize_<Operation>_<YYYYMMDD_HHMMSS>.txt` 형식입니다.
+- Global A-Z Analyze/Apply 보고서는 operation을 `GLOBAL A-Z ANALYZE` 또는 `GLOBAL A-Z REINDEX`로 기록하고, `[GLOBAL A-Z REINDEX]`와 `[PER OBJECT A-Z REMAP]` 선택 섹션을 추가합니다.
 
 ## 보고서 불러오기
 
@@ -73,7 +90,7 @@ USD 변환, append, face ID remap, Master material 할당을 포함한 Apply 전
 - 첫 번째 의미 있는 줄이 정확히 `Lunar Material ID Normalizer Report`인 파일만 받습니다.
 - `Report Format Version: 1` 보고서와, 해당 줄은 없지만 기존 섹션을 인식할 수 있는 legacy 보고서를 format 1로 읽습니다.
 - CRLF/LF 줄바꿈과 명시적 `[SECTION]` 헤더, 탭 구분 표를 파싱합니다. 누락된 선택 섹션, 잘린 행, 잘못된 정수는 가능한 값을 문자열로 유지하고 `PARSER WARNING`으로 표시합니다.
-- 불러온 내용은 별도의 modeless `LOADED REPORT — READ ONLY` 뷰어에서 Summary, Canonical Materials, Target Remap, Conversions, Appended, Conflicts / Warnings 탭으로 확인합니다.
+- 불러온 내용은 별도의 modeless `LOADED REPORT — READ ONLY` 뷰어에서 Summary, Canonical Materials, Target Remap, Conversions, Appended, Conflicts / Warnings 탭으로 확인합니다. MK2 선택 섹션이 있으면 Global A-Z와 Per-Object A-Z 탭에도 표시하며, 기존 MK1 보고서는 빈 선택 탭으로 그대로 읽습니다.
 - Target Remap 탭에서는 보고서에 저장된 Target을 선택할 수 있고, `Open Another Report...`와 `Close`를 사용할 수 있습니다.
 - 불러온 snapshot은 문자열과 값 배열만 보관합니다. scene node를 찾거나 참조하지 않으며 현재 selection, Master/Targets, Analyze, `Convert Materials Only`, `Normalize / Apply`에 영향을 주지 않습니다.
 
@@ -118,11 +135,11 @@ USD 변환, append, face ID remap, Master material 할당을 포함한 Apply 전
 
 ## 자동 검증
 
-`tests/LunarMaterialIDNormalizer_smoke.ms`를 Autodesk 3ds Max 2026.3.3 Batch에서 실행해 115개 검사가 통과했습니다. 기존 정규화 회귀 범위에 더해 USD 기본 변환, 두 Override의 적용 범위와 OFF 기본값 보존, shared reference cache, Multi/Sub container/ID 보존, class/color conflict 차단, Convert OFF, texture 무시, selection 기반 Convert Materials Only의 Master/Target 독립성·다중 선택·기존 VRay 보호·비정규화 보장·Undo, slot-name sync, report seed 경로와 한·일 문자가 포함된 UTF-8 보고서, format-version/CRLF/LF/legacy/malformed/optional-section 파싱, 관련 없는 파일 거부, load snapshot과 Analyze/Convert Only/Normalize의 독립성을 검증합니다.
+`tests/LunarMaterialIDNormalizer_smoke.ms`를 Autodesk 3ds Max 2026.3.3 Batch에서 실행해 168개 검사가 통과했습니다. 기존 MK1 정규화 회귀 범위 전체와 USD 변환·보고서 loader 독립성을 유지하면서, Global A-Z의 대소문자 무시 결정적 정렬, 정확한 이름 key, 서로 다른 기존 ID와 부분집합, ID 교환, 공유/서로 다른 Multi/Sub container, 단일 재질 skip, 중복 ID·미정의 face ID·빈 slot 사용·중복 이름·class/color conflict 차단, 안전한 빈 slot 보존, 혼합 material class reference 보존, fresh Analyze, 현재 selection과 Master/Targets의 독립성, one-step Undo, MK2 선택 보고서의 export/load를 검증합니다.
 
-3ds Max GUI probe에서 Save File 대화상자와 Load Report Open File 대화상자의 실제 열림, Load Cancel의 무동작 처리, modeless 읽기 전용 뷰어 표시를 확인했습니다. 보고서 생성 함수와 UTF-8 파일 내용은 Batch에서 검증했습니다.
+3ds Max GUI probe에서 Save File 대화상자와 Load Report Open File 대화상자의 실제 열림, Load Cancel의 무동작 처리, modeless 읽기 전용 뷰어 표시를 확인했습니다. MK2 probe에서는 Global A-Z 창의 Global Registry, Per-Object Preview, Conflicts / Skipped 탭과 보고서 뷰어의 Global A-Z, Per-Object A-Z 탭이 실제로 생성되는 것도 확인했습니다. 보고서 생성 함수와 UTF-8 파일 내용은 Batch에서 검증했습니다.
 
-이 버전은 위 회귀 범위를 기준으로 동결한 MK1입니다. 후속 실험 기능은 MK1의 검증된 동작과 분리해서 다루어야 합니다.
+MK2는 동결된 MK1 동작을 유지하면서 독립적인 Global A-Z workflow를 추가한 버전입니다.
 
 ## 간단 테스트 절차
 
