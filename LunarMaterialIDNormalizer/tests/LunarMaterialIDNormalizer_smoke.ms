@@ -154,6 +154,17 @@ fn lmnHasAZConflict previewValues conflictType =
     found
 )
 
+fn lmnSelectionContains nodeValue =
+(
+    local found = false
+    if nodeValue != undefined and isValidNode nodeValue do
+    (
+        for selectedNode in selection while not found do
+            if selectedNode == nodeValue do found = true
+    )
+    found
+)
+
 fn lmnPointArraysEqual leftValues rightValues =
 (
     local equalValues = leftValues.count == rightValues.count
@@ -749,11 +760,82 @@ try
     azSharedG3 = lmnMakePoly "AZ_Shared_G3_EXTERNAL" azSharedMatG #(8,8,3,3,8,3)
     azOldIDsG = for value in azSharedMatG.materialIDList collect value
     azOldFacesG = lmnFaceIDs azSharedG1
+    azAppearanceG1 = lmnFaceMaterialRefs azSharedG1
+    azAppearanceG2 = lmnFaceMaterialRefs azSharedG2
+    azAppearanceG3 = lmnFaceMaterialRefs azSharedG3
     select #(azSharedG1, azSharedG2)
     lmnAssert (not LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false) "AZ G Analyze blocks an unselected shared Multi/Sub user"
     azPreviewG = LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()
-    lmnAssert (lmnHasAZConflict azPreviewG "EXTERNAL MATERIAL USER" and (findString azPreviewG[5][1][3] "AZ_Shared_G3_EXTERNAL") != undefined) "AZ G identifies the unselected EXTERNAL MATERIAL USER by name"
+    azRequiredG = LunarMaterialIDNormalizerRollout.getGlobalAZRequiredUserValues()
+    lmnAssert (lmnHasAZConflict azPreviewG "REQUIRED / NOT SELECTED" and (findString azPreviewG[5][1][3] "AZ_Shared_G3_EXTERNAL") != undefined) "AZ G identifies the required unselected user by name"
+    lmnAssert (azRequiredG[1].count == 1 and azRequiredG[1][1] == azSharedG3) "AZ G stores the exact required Scene Node reference"
     lmnAssert (not LunarMaterialIDNormalizerRollout.applyGlobalAZReindex() and lmnArrayEquals (for value in azSharedMatG.materialIDList collect value) azOldIDsG and lmnArrayEquals (lmnFaceIDs azSharedG1) azOldFacesG) "AZ G blocked Apply makes no scene change"
+    azSelectResultG = LunarMaterialIDNormalizerRollout.selectGlobalAZRequiredObjects()
+    lmnAssert (azSelectResultG[1] == 1 and azSelectResultG[4] and lmnSelectionContains azSharedG1 and lmnSelectionContains azSharedG2 and lmnSelectionContains azSharedG3) "AZ G adds the required user while preserving existing selection and automatically re-analyzes"
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ G Apply succeeds after every shared user is selected"
+    lmnAssert (lmnArrayEquals (lmnFaceMaterialRefs azSharedG1) azAppearanceG1 and lmnArrayEquals (lmnFaceMaterialRefs azSharedG2) azAppearanceG2 and lmnArrayEquals (lmnFaceMaterialRefs azSharedG3) azAppearanceG3) "AZ G required-user workflow preserves shared-user appearance"
+
+    -- Shared-user selection UX: hidden, multiple, unsupported, and invalid users.
+    azSharedMatHidden = lmnMakeMulti #("B_AZ_HIDDEN", "A_AZ_HIDDEN") #(9,4)
+    azHiddenScope = lmnMakePoly "AZ_Hidden_Scope" azSharedMatHidden #(9,4,9,4,9,4)
+    azHiddenRequired = lmnMakePoly "AZ_Hidden_Required" azSharedMatHidden #(4,9,4,9,4,9)
+    azHiddenOldIDs = for value in azSharedMatHidden.materialIDList collect value
+    azHiddenOldFaces = lmnFaceIDs azHiddenRequired
+    azHiddenAppearanceScope = lmnFaceMaterialRefs azHiddenScope
+    azHiddenAppearanceRequired = lmnFaceMaterialRefs azHiddenRequired
+    hide azHiddenRequired
+    select azHiddenScope
+    lmnAssert (not LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false and lmnHasAZConflict (LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()) "REQUIRED / NOT SELECTED") "AZ Required Hidden Analyze identifies a hidden unselected user"
+    azHiddenSelectResult = LunarMaterialIDNormalizerRollout.selectGlobalAZRequiredObjects()
+    lmnAssert (azHiddenSelectResult[1] == 1 and azHiddenSelectResult[2] == 1 and azHiddenSelectResult[4] and lmnSelectionContains azHiddenScope and lmnSelectionContains azHiddenRequired) "AZ Required Hidden adds the hidden node and preserves the existing selection"
+    lmnAssert azHiddenRequired.isHidden "AZ Required Hidden preserves hidden state"
+    clearUndoBuffer()
+    lmnAssert (LunarMaterialIDNormalizerRollout.applyGlobalAZReindex()) "AZ Required Hidden shared users apply successfully"
+    lmnAssert (azHiddenRequired.isHidden and lmnArrayEquals (lmnFaceMaterialRefs azHiddenScope) azHiddenAppearanceScope and lmnArrayEquals (lmnFaceMaterialRefs azHiddenRequired) azHiddenAppearanceRequired) "AZ Required Hidden Apply preserves visibility and appearance"
+    max undo
+    lmnAssert (azHiddenRequired.isHidden and lmnArrayEquals (for value in azSharedMatHidden.materialIDList collect value) azHiddenOldIDs and lmnArrayEquals (lmnFaceIDs azHiddenRequired) azHiddenOldFaces) "AZ Required Hidden one Undo restores IDs while preserving hidden state"
+
+    azSharedMatFrozen = lmnMakeMulti #("B_AZ_FROZEN", "A_AZ_FROZEN") #(11,6)
+    azFrozenScope = lmnMakePoly "AZ_Frozen_Scope" azSharedMatFrozen #(11,6,11,6,11,6)
+    azFrozenRequired = lmnMakePoly "AZ_Frozen_Required" azSharedMatFrozen #(6,11,6,11,6,11)
+    freeze azFrozenRequired
+    select azFrozenScope
+    lmnAssert (not LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false and lmnHasAZConflict (LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()) "REQUIRED / NOT SELECTED") "AZ Required Frozen Analyze identifies a frozen unselected user"
+    azFrozenSelectResult = LunarMaterialIDNormalizerRollout.selectGlobalAZRequiredObjects()
+    lmnAssert (azFrozenSelectResult[1] == 1 and azFrozenSelectResult[4] and lmnSelectionContains azFrozenScope and lmnSelectionContains azFrozenRequired) "AZ Required Frozen adds the frozen node without replacing selection"
+    lmnAssert azFrozenRequired.isFrozen "AZ Required Frozen preserves frozen state"
+
+    azSharedMatMultiple = lmnMakeMulti #("B_AZ_MULTI_REQUIRED", "A_AZ_MULTI_REQUIRED") #(7,2)
+    azMultiScope = lmnMakePoly "AZ_MultiRequired_Scope" azSharedMatMultiple #(7,2,7,2,7,2)
+    azMultiRequired1 = lmnMakePoly "AZ_MultiRequired_1" azSharedMatMultiple #(2,7,2,7,2,7)
+    azMultiRequired2 = lmnMakePoly "AZ_MultiRequired_2" azSharedMatMultiple #(7,7,2,2,7,2)
+    azMultiRequired3 = lmnMakePoly "AZ_MultiRequired_3" azSharedMatMultiple #(2,2,7,7,2,7)
+    select azMultiScope
+    lmnAssert (not LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false and (LunarMaterialIDNormalizerRollout.getGlobalAZRequiredUserValues())[1].count == 3) "AZ Required Multiple Analyze stores every external user"
+    azMultiSelectResult = LunarMaterialIDNormalizerRollout.selectGlobalAZRequiredObjects()
+    lmnAssert (azMultiSelectResult[1] == 3 and azMultiSelectResult[4] and selection.count == 4 and lmnSelectionContains azMultiScope and lmnSelectionContains azMultiRequired1 and lmnSelectionContains azMultiRequired2 and lmnSelectionContains azMultiRequired3) "AZ Required Multiple adds all users in one action without replacing selection"
+
+    azSharedMatUnsupported = lmnMakeMulti #("B_AZ_UNSUPPORTED_REQUIRED", "A_AZ_UNSUPPORTED_REQUIRED") #(6,3)
+    azUnsupportedScope = lmnMakePoly "AZ_Unsupported_Scope" azSharedMatUnsupported #(6,3,6,3,6,3)
+    azSupportedRequired = lmnMakePoly "AZ_Supported_Required" azSharedMatUnsupported #(3,6,3,6,3,6)
+    azUnsupportedRequired = box name:"AZ_Unsupported_Required"
+    azUnsupportedRequired.material = azSharedMatUnsupported
+    select azUnsupportedScope
+    lmnAssert (not LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false and lmnHasAZConflict (LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()) "REQUIRED / UNSUPPORTED GEOMETRY") "AZ Required Unsupported distinguishes unsupported shared geometry"
+    azUnsupportedSelectResult = LunarMaterialIDNormalizerRollout.selectGlobalAZRequiredObjects()
+    azUnsupportedPreview = LunarMaterialIDNormalizerRollout.getGlobalAZPreviewValues()
+    lmnAssert (azUnsupportedSelectResult[1] == 2 and not azUnsupportedSelectResult[4] and lmnSelectionContains azUnsupportedScope and lmnSelectionContains azSupportedRequired and lmnSelectionContains azUnsupportedRequired) "AZ Required Unsupported adds supported and unsupported external users additively"
+    lmnAssert (lmnHasAZConflict azUnsupportedPreview "REQUIRED / UNSUPPORTED GEOMETRY" and not lmnHasAZConflict azUnsupportedPreview "REQUIRED / NOT SELECTED" and (LunarMaterialIDNormalizerRollout.getGlobalAZRequiredUserValues())[1].count == 0) "AZ Required Unsupported remains blocked after automatic re-analysis"
+    lmnAssert (not LunarMaterialIDNormalizerRollout.applyGlobalAZReindex() and classOf azUnsupportedRequired.baseObject == Box and azUnsupportedRequired.material == azSharedMatUnsupported) "AZ Required Unsupported cannot bypass fresh Apply safety or modify geometry"
+
+    azSharedMatInvalid = lmnMakeMulti #("B_AZ_INVALID_REQUIRED", "A_AZ_INVALID_REQUIRED") #(10,5)
+    azInvalidScope = lmnMakePoly "AZ_Invalid_Scope" azSharedMatInvalid #(10,5,10,5,10,5)
+    azInvalidRequired = lmnMakePoly "AZ_Invalid_Required" azSharedMatInvalid #(5,10,5,10,5,10)
+    select azInvalidScope
+    lmnAssert (not LunarMaterialIDNormalizerRollout.analyzeGlobalAZ updateUI:false and (LunarMaterialIDNormalizerRollout.getGlobalAZRequiredUserValues())[1][1] == azInvalidRequired) "AZ Required Invalid Analyze caches the exact required node"
+    delete azInvalidRequired
+    azInvalidSelectResult = LunarMaterialIDNormalizerRollout.selectGlobalAZRequiredObjects()
+    lmnAssert (azInvalidSelectResult[1] == 0 and azInvalidSelectResult[3] == 1 and azInvalidSelectResult[4] and selection.count == 1 and selection[1] == azInvalidScope) "AZ Required Invalid skips a deleted node and completes fresh Analyze safely"
 
     -- H/I: Different containers are updated independently; single materials are skipped.
     azMatH1 = lmnMakeMulti #("Steel_AZ_H", "Concrete_AZ_H") #(7,2)

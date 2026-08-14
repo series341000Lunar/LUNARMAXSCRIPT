@@ -35,7 +35,9 @@ MK2의 `Global A-Z Reindex...`는 기존 Master/Targets 정규화와 완전히 �
 - 각 Multi/Sub의 비어 있지 않은 slot은 해당 Global ID 순서로 정렬되고 `materialIDList`와 slot name이 함께 동기화됩니다. 안전한 빈 slot은 보존하며, 새 Global ID와 충돌하거나 face가 사용 중인 빈 slot은 작업을 차단합니다.
 - face ID는 Apply 전 원본 face BitArray snapshot과 오브젝트별 숫자 lookup을 사용해 한 번만 remap하므로 ID 교환도 중간 상태의 영향을 받지 않습니다.
 - 같은 대소문자 무시 이름에서 raw material class가 다르거나 비교 가능한 diffuse가 다르면 전체 작업을 차단합니다. 하나의 Multi/Sub 안에 대소문자만 다른 중복 이름, 중복 Material ID, 정의되지 않은 face ID도 차단합니다.
-- 하나의 Multi/Sub reference를 여러 지원 노드가 공유할 때는 그 모든 사용자가 현재 선택에 포함된 경우에만 한 번 재배열합니다. 선택되지 않은 사용자나 선택된 비지원 사용자가 있으면 `EXTERNAL MATERIAL USER`로 차단합니다.
+- 하나의 Multi/Sub reference를 여러 노드가 공유할 때는 안전하게 remap 가능한 모든 사용자가 현재 선택에 포함된 경우에만 한 번 재배열합니다. 누락된 Editable Poly 사용자는 `REQUIRED / NOT SELECTED`, remap할 수 없는 사용자는 `REQUIRED / UNSUPPORTED GEOMETRY`로 구분해 Apply를 차단합니다.
+- `Select Required Objects`는 Analyze가 저장한 실제 Scene Node reference를 기존 selection에 추가하고 즉시 다시 Analyze합니다. 이름으로 노드를 다시 검색하지 않으며, 숨김 노드도 선택에 포함시키되 Hidden/Frozen 상태, Layer, hierarchy와 scene 데이터는 변경하지 않습니다.
+- 비지원 Geometry도 selection 밖의 필수 사용자라면 버튼이 선택 추가를 시도하지만, 재분석 후 `REQUIRED / UNSUPPORTED GEOMETRY` Conflict와 Apply 차단은 유지됩니다. 자동 Convert/Collapse나 안전장치 우회는 하지 않습니다.
 - 단일 재질 노드, 재질 없는 노드, 비 Editable Poly 노드는 건너뛰며 자동 변환하거나 container를 만들지 않습니다.
 - Apply 직전에 selection과 장면을 새로 Analyze하고, material 배열과 face ID 변경 전체를 `Global A-Z Material Reindex`라는 하나의 Undo 단위로 처리합니다.
 - topology, transform, pivot, object name, UV, smoothing group, normal, modifier stack과 기존 sub-material의 이름·class·속성은 변경하지 않습니다.
@@ -135,9 +137,9 @@ MK2의 `Global A-Z Reindex...`는 기존 Master/Targets 정규화와 완전히 �
 
 ## 자동 검증
 
-`tests/LunarMaterialIDNormalizer_smoke.ms`를 Autodesk 3ds Max 2026.3.3 Batch에서 실행해 168개 검사가 통과했습니다. 기존 MK1 정규화 회귀 범위 전체와 USD 변환·보고서 loader 독립성을 유지하면서, Global A-Z의 대소문자 무시 결정적 정렬, 정확한 이름 key, 서로 다른 기존 ID와 부분집합, ID 교환, 공유/서로 다른 Multi/Sub container, 단일 재질 skip, 중복 ID·미정의 face ID·빈 slot 사용·중복 이름·class/color conflict 차단, 안전한 빈 slot 보존, 혼합 material class reference 보존, fresh Analyze, 현재 selection과 Master/Targets의 독립성, one-step Undo, MK2 선택 보고서의 export/load를 검증합니다.
+`tests/LunarMaterialIDNormalizer_smoke.ms`를 Autodesk 3ds Max 2026.3.3 Batch에서 실행해 189개 검사가 통과했습니다. 기존 MK1 정규화 회귀 범위 전체와 USD 변환·보고서 loader 독립성을 유지하면서, Global A-Z의 대소문자 무시 결정적 정렬, 정확한 이름 key, 서로 다른 기존 ID와 부분집합, ID 교환, 공유/서로 다른 Multi/Sub container, 단일 재질 skip, 중복 ID·미정의 face ID·빈 slot 사용·중복 이름·class/color conflict 차단, 안전한 빈 slot 보존, 혼합 material class reference 보존, fresh Analyze, 현재 selection과 Master/Targets의 독립성, one-step Undo, MK2 선택 보고서의 export/load를 검증합니다. 추가로 숨김·고정·표시·다중 외부 사용자의 additive selection과 상태 보존, 정확한 Node reference 사용, 자동 재분석, 비지원 Geometry 차단 유지, 삭제된 캐시 노드의 안전한 skip을 검증합니다.
 
-3ds Max GUI probe에서 Save File 대화상자와 Load Report Open File 대화상자의 실제 열림, Load Cancel의 무동작 처리, modeless 읽기 전용 뷰어 표시를 확인했습니다. MK2 probe에서는 Global A-Z 창의 Global Registry, Per-Object Preview, Conflicts / Skipped 탭과 보고서 뷰어의 Global A-Z, Per-Object A-Z 탭이 실제로 생성되는 것도 확인했습니다. 보고서 생성 함수와 UTF-8 파일 내용은 Batch에서 검증했습니다.
+3ds Max GUI probe에서 Save File 대화상자와 Load Report Open File 대화상자의 실제 열림, Load Cancel의 무동작 처리, modeless 읽기 전용 뷰어 표시를 확인했습니다. MK2 probe에서는 Global A-Z 창의 Global Registry, Per-Object Preview, Conflicts / Skipped 탭과 보고서 뷰어의 Global A-Z, Per-Object A-Z 탭이 실제로 생성되는 것도 확인했습니다. `Select Required Objects` 버튼은 외부 사용자가 있을 때만 활성화되고, 실제 클릭 후 기존 선택과 숨김 상태를 보존하면서 필수 노드를 추가하고 Apply를 활성화하는 것을 확인했습니다. 보고서 생성 함수와 UTF-8 파일 내용은 Batch에서 검증했습니다.
 
 MK2는 동결된 MK1 동작을 유지하면서 독립적인 Global A-Z workflow를 추가한 버전입니다.
 

@@ -107,6 +107,8 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer MK2" widt
     local globalAZObjectAnalyses = #()
     local globalAZConflictRows = #()
     local globalAZSkippedRows = #()
+    local globalAZRequiredExternalUsers = #()
+    local globalAZUnsupportedSharedUsers = #()
     local globalAZAnalysisReady = false
     local lastGlobalAZSelectedNames = #()
     local lastGlobalAZRegistryRows = #()
@@ -771,6 +773,17 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer MK2" widt
         nodeArray
     )
 
+    fn isNodeInCurrentSelection nodeValue =
+    (
+        local found = false
+        if isValidStoredNode nodeValue do
+        (
+            for selectedNode in selection while not found do
+                if selectedNode == nodeValue do found = true
+        )
+        found
+    )
+
     fn appendUniqueInteger integerArray integerValue =
     (
         if (findItem integerArray integerValue) == 0 do append integerArray integerValue
@@ -802,14 +815,15 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer MK2" widt
         true
     )
 
-    fn markGlobalAZMaterialConflict materialAnalysis conflictType detailText =
+    fn markGlobalAZMaterialConflict materialAnalysis conflictType detailText itemText:undefined =
     (
         materialAnalysis[2] = "CONFLICT"
         if materialAnalysis[3] == "" then
             materialAnalysis[3] = detailText
         else if findString materialAnalysis[3] detailText == undefined do
             materialAnalysis[3] += " | " + detailText
-        addGlobalAZConflict conflictType (materialAnalysis[1].name as string) detailText
+        local displayItem = if itemText == undefined then materialAnalysis[1].name as string else itemText as string
+        addGlobalAZConflict conflictType displayItem detailText
         true
     )
 
@@ -1015,24 +1029,44 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer MK2" widt
         true
     )
 
-    fn validateGlobalAZSharedUsers eligibleNodes =
+    fn validateGlobalAZSharedUsers eligibleNodes selectedNodes =
     (
         for materialAnalysis in globalAZMaterialAnalyses do
         (
             local materialValue = materialAnalysis[1]
-            local externalUsers = #()
+            local notSelectedUsers = #()
+            local unsupportedUsers = #()
             for sceneNode in objects do
             (
                 local usesMaterial = false
                 try (usesMaterial = sceneNode.material == materialValue) catch (usesMaterial = false)
-                if usesMaterial and (findItem eligibleNodes sceneNode) == 0 do appendUniqueNode externalUsers sceneNode
+                if usesMaterial and (findItem eligibleNodes sceneNode) == 0 do
+                (
+                    local isSelected = (findItem selectedNodes sceneNode) > 0
+                    local isSupported = isEditablePolyNode sceneNode
+                    if not isSelected do appendUniqueNode globalAZRequiredExternalUsers sceneNode
+                    if isSupported and not isSelected then
+                        appendUniqueNode notSelectedUsers sceneNode
+                    else if not isSupported do
+                    (
+                        appendUniqueNode unsupportedUsers sceneNode
+                        appendUniqueNode globalAZUnsupportedSharedUsers sceneNode
+                    )
+                )
             )
-            if externalUsers.count > 0 do
+            if notSelectedUsers.count > 0 do
             (
-                local names = globalAZNodeNames externalUsers
-                markGlobalAZMaterialConflict materialAnalysis "EXTERNAL MATERIAL USER" ("Shared Multi/Sub is also used by " + (externalUsers.count as string) +
-                    " object(s) that cannot be remapped: " + joinGlobalAZText names ", " +
-                    ". Select all Editable Poly users before applying.")
+                local names = globalAZNodeNames notSelectedUsers
+                local nameText = joinGlobalAZText names ", "
+                local detailText = "These Editable Poly object(s) share the Multi/Sub and must be added before applying: " + nameText + "."
+                markGlobalAZMaterialConflict materialAnalysis "REQUIRED / NOT SELECTED" detailText itemText:nameText
+            )
+            if unsupportedUsers.count > 0 do
+            (
+                local names = globalAZNodeNames unsupportedUsers
+                local nameText = joinGlobalAZText names ", "
+                local detailText = "These object(s) share the Multi/Sub, but their face Material IDs cannot be safely remapped: " + nameText + ". Automatic conversion or collapse is not performed."
+                markGlobalAZMaterialConflict materialAnalysis "REQUIRED / UNSUPPORTED GEOMETRY" detailText itemText:nameText
             )
         )
         true
@@ -1159,6 +1193,8 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer MK2" widt
         globalAZObjectAnalyses = #()
         globalAZConflictRows = #()
         globalAZSkippedRows = #()
+        globalAZRequiredExternalUsers = #()
+        globalAZUnsupportedSharedUsers = #()
         globalAZAnalysisReady = false
 
         local eligibleNodes = #()
@@ -1177,7 +1213,7 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer MK2" widt
 
         buildGlobalAZRegistry eligibleNodes
         validateGlobalAZEmptySlots()
-        validateGlobalAZSharedUsers eligibleNodes
+        validateGlobalAZSharedUsers eligibleNodes globalAZSelectionNodes
         buildGlobalAZObjectAnalyses globalAZSelectionNodes eligibleNodes
 
         local readyCount = 0
@@ -1221,6 +1257,52 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer MK2" widt
         #(globalAZAnalysisReady, globalAZNodeNames globalAZSelectionNodes, registryValues, objectValues,
             for rowValue in globalAZConflictRows collect #(rowValue[1], rowValue[2], rowValue[3]),
             for rowValue in globalAZSkippedRows collect #(rowValue[1], rowValue[2], rowValue[3]))
+    )
+
+    fn getGlobalAZRequiredUserValues =
+    (
+        local requiredValues = for nodeValue in globalAZRequiredExternalUsers collect nodeValue
+        local unsupportedValues = for nodeValue in globalAZUnsupportedSharedUsers collect nodeValue
+        #(requiredValues, unsupportedValues)
+    )
+
+    fn selectGlobalAZRequiredObjects =
+    (
+        local cachedRequiredUsers = for nodeValue in globalAZRequiredExternalUsers collect nodeValue
+        local validCandidates = #()
+        local invalidCount = 0
+        for nodeValue in cachedRequiredUsers do
+        (
+            if isValidStoredNode nodeValue then
+            (
+                if not isNodeInCurrentSelection nodeValue do appendUniqueNode validCandidates nodeValue
+            )
+            else
+                invalidCount += 1
+        )
+
+        local addedCount = 0
+        local hiddenAddedCount = 0
+        for nodeValue in validCandidates do
+        (
+            try (selectMore nodeValue) catch()
+            if isValidStoredNode nodeValue and isNodeInCurrentSelection nodeValue do
+            (
+                addedCount += 1
+                local hiddenValue = false
+                try (hiddenValue = nodeValue.isHidden) catch (hiddenValue = false)
+                if hiddenValue do hiddenAddedCount += 1
+            )
+        )
+
+        analyzeGlobalAZ updateUI:true recordOperation:true
+
+        local statusText = "Added " + (addedCount as string) + " required object(s) to selection"
+        if hiddenAddedCount > 0 do statusText += " (" + (hiddenAddedCount as string) + " hidden)"
+        if invalidCount > 0 do statusText += "; skipped " + (invalidCount as string) + " invalid object(s)"
+        statusText += ". Re-analysis complete: " + (if globalAZAnalysisReady then "READY." else "BLOCKED.")
+        setStatus statusText
+        #(addedCount, hiddenAddedCount, invalidCount, globalAZAnalysisReady)
     )
 
     fn snapshotGlobalAZMaterials =
@@ -1494,6 +1576,7 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer MK2" widt
             local objectCombo = globalAZControls[3]
             local conflictList = globalAZControls[5]
             local applyButton = globalAZControls[6]
+            local requiredButton = globalAZControls[7]
 
             summaryLabel.text = "Selected Objects: " + (globalAZSelectionNodes.count as string) +
                 "     |     Unique Materials: " + (globalAZRegistryRows.count as string) +
@@ -1524,6 +1607,7 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer MK2" widt
             if globalAZConflictRows.count == 0 and globalAZSkippedRows.count == 0 do addListViewRow conflictList #("None")
 
             applyButton.enabled = globalAZAnalysisReady
+            requiredButton.enabled = globalAZRequiredExternalUsers.count > 0
         )
         true
     )
@@ -1531,6 +1615,7 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer MK2" widt
     fn onGlobalAZObjectChanged sender eventArgs = refreshGlobalAZObjectPreview()
     fn onGlobalAZAnalyze sender eventArgs = analyzeGlobalAZ updateUI:true recordOperation:true
     fn onGlobalAZApply sender eventArgs = applyGlobalAZReindex()
+    fn onGlobalAZSelectRequired sender eventArgs = selectGlobalAZRequiredObjects()
     fn onGlobalAZClose sender eventArgs = if globalAZForm != undefined do globalAZForm.Close()
     fn onGlobalAZFormClosed sender eventArgs =
     (
@@ -1581,6 +1666,14 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer MK2" widt
             form.controls.add applyButton
             dotNet.addEventHandler applyButton "Click" onGlobalAZApply
 
+            local requiredButton = dotNetObject "System.Windows.Forms.Button"
+            requiredButton.text = "Select Required Objects"
+            requiredButton.location = dotNetObject "System.Drawing.Point" 412 68
+            requiredButton.size = dotNetObject "System.Drawing.Size" 220 34
+            requiredButton.enabled = false
+            form.controls.add requiredButton
+            dotNet.addEventHandler requiredButton "Click" onGlobalAZSelectRequired
+
             local tabs = dotNetObject "System.Windows.Forms.TabControl"
             tabs.location = dotNetObject "System.Drawing.Point" 12 112
             tabs.size = dotNetObject "System.Drawing.Size" 1078 568
@@ -1625,7 +1718,7 @@ rollout LunarMaterialIDNormalizerRollout "Lunar Material ID Normalizer MK2" widt
             dotNet.addEventHandler form "FormClosed" onGlobalAZFormClosed
 
             globalAZForm = form
-            globalAZControls = #(summaryLabel, registryList, objectCombo, objectList, conflictList, applyButton)
+            globalAZControls = #(summaryLabel, registryList, objectCombo, objectList, conflictList, applyButton, requiredButton)
             refreshGlobalAZViewer()
             form.Show()
             true
