@@ -152,6 +152,6 @@ MK2는 동결된 MK1 동작을 유지하면서 독립적인 Global A-Z workflow�
 - Master에 이름 A가 두 ID로 존재하면 `DUPLICATE NAME`이 표시되고 Apply가 차단되는지 확인합니다.
 - 재질 없는 Target은 건너뛰고 나머지가 정상 처리되는지 확인합니다.
 
-## License
+## 라이선스
 
-This tool is licensed under the GNU General Public License v3.0. See [../LICENSE](../LICENSE).
+이 도구는 GNU General Public License v3.0으로 배포됩니다. 자세한 내용은 [../LICENSE](../LICENSE)를 참조하세요.

@@ -152,6 +152,6 @@ MK2 manté el comportament congelat de MK1 i hi afegeix el workflow independent 
 - Si el Master conté el nom A en dos ID, confirmeu que es mostra `DUPLICATE NAME` i que l'Apply queda bloquejat.
 - Confirmeu que un Target sense material s'omet mentre la resta es processen correctament.
 
-## License
+## Llicència
 
-This tool is licensed under the GNU General Public License v3.0. See [../LICENSE](../LICENSE).
+Aquesta eina es distribueix sota la GNU General Public License v3.0. Consulteu [../LICENSE](../LICENSE) per obtenir-ne els detalls.

@@ -1,5 +1,7 @@
 # Lunar VRayMtl Batch Override
 
+[한국어](README.md) · [Català](README.ca.md)
+
 활성 Slate Material Editor 뷰에서 사용자가 직접 선택한 `VRayMtl` 인스턴스만 대상으로, 체크한 파라미터만 일괄 변경하는 독립 MAXScript 유틸리티입니다.
 
 실행 파일: `src/Lunar_VRayMtl_Batch_Override.ms`
@@ -88,3 +90,7 @@ Refraction Glossiness는 `refraction_glossiness`에 사용자가 입력한 값�
 - UI 기본 OFF, Keep 기본값, 비활성 Control 연동 검증
 
 `tests/VRayMtl_property_probe.ms`는 설치된 `VRayMtl`의 Property를 다시 조사할 때 사용하는 진단 스크립트입니다. 다른 V-Ray 빌드에서는 이 진단 결과를 확인한 뒤 호환성 표를 갱신해야 합니다.
+
+## 라이선스
+
+이 도구는 GNU General Public License v3.0으로 배포됩니다. 자세한 내용은 [../LICENSE](../LICENSE)를 참조하세요.

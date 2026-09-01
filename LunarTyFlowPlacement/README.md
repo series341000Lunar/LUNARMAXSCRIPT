@@ -1,5 +1,7 @@
 # Lunar → tyFlow Placement MK1
 
+[한국어](README.md) · [Català](README.ca.md)
+
 `LunarTyFlowPlacement_MK1.ms`는 C4D에서 수동 배치한 3ds Max Source Object들을 이름 기준 Family로 묶고, 등록된 하나의 tyFlow 안에 Family별 `LUNAR_` Event를 생성하거나 갱신합니다.
 
 ## 실행
@@ -54,3 +56,7 @@ Source Node의 transform, pivot offset, geometry, visibility, hidden/frozen stat
 - `tests/LunarTyFlowPlacement_smoke.ms`: 39 Passed / 0 Failed
 
 테스트는 이름 분류, 단일/다중 Family, Instance ignore/validation, 기존 Event 보호, Update/Skip, 삭제된 Shape Source, Source 불변성뿐 아니라 실제 particle Position/Rotation/Scale과 Shape mesh 결과까지 확인합니다.
+
+## 라이선스
+
+이 도구는 GNU General Public License v3.0으로 배포됩니다. 자세한 내용은 [../LICENSE](../LICENSE)를 참조하세요.

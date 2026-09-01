@@ -1,50 +1,34 @@
 # Lunar Transform Assistant
 
-Lunar Transform Assistant is a MAXScript-only production utility for Autodesk 3ds Max 2026. It captures a Source and Targets explicitly, copies or instances supported transform channels, copies or instances Base Objects, manages transform locks, and clears node-level hidden state.
+[한국어](README.md) · [Català](README.ca.md)
 
-The implementation favors predictable behavior and preservation of existing scene data. Unsupported controller structures are skipped rather than converted.
+Autodesk 3ds Max 2026용 MAXScript 제작 보조 도구입니다. 명시적으로 지정한 Source와 Targets 사이에서 지원되는 Transform Channel, Full Transform, Base Object를 Copy 또는 Instance하고, 현재 Selection의 Transform Lock과 Node-level Hidden 상태를 관리합니다.
 
-## Files
+예측 가능한 동작과 기존 Scene Data 보존을 우선합니다. 지원하지 않는 Controller 구조는 자동 변환하지 않고 건너뛰며 Listener에 이유를 기록합니다.
+
+## 파일
 
 ```text
 src/LunarTransformAssistant.ms
 macros/LunarTransformAssistant.mcr
 README.md
+README.ca.md
 ```
 
-## Installation
+## 설치와 실행
 
-### Recommended user-scripts layout
+권장 설치 구조는 다음과 같습니다.
 
-1. Create this folder under the 3ds Max user scripts directory:
+```text
+<3ds Max user scripts>\LunarTransformAssistant\src\LunarTransformAssistant.ms
+<3ds Max user scripts>\LunarTransformAssistant\macros\LunarTransformAssistant.mcr
+```
 
-   ```text
-   <3ds Max user scripts>\LunarTransformAssistant
-   ```
+1. 위 구조로 `src`와 `macros`를 복사합니다.
+2. 3ds Max에서 **Scripting > Run Script**를 열고 `macros\LunarTransformAssistant.mcr`을 실행합니다.
+3. **Customize > Customize User Interface**에서 Category `Lunar Tools`의 `Lunar Transform Assistant` Action을 Toolbar, Menu, Quad Menu 또는 Keyboard Shortcut에 추가합니다.
 
-2. Copy the project folders so the result is:
-
-   ```text
-   <3ds Max user scripts>\LunarTransformAssistant\src\LunarTransformAssistant.ms
-   <3ds Max user scripts>\LunarTransformAssistant\macros\LunarTransformAssistant.mcr
-   ```
-
-3. In 3ds Max, choose **Scripting > Run Script** and run:
-
-   ```text
-   <3ds Max user scripts>\LunarTransformAssistant\macros\LunarTransformAssistant.mcr
-   ```
-
-Running the `.mcr` registers or refreshes the MacroScript action. The MacroScript contains only launcher logic and loads the main `.ms` file when executed.
-
-### Register the MacroScript in the UI
-
-1. Open **Customize > Customize User Interface**.
-2. Choose the toolbar, menu, quad menu, or keyboard tab where the action should appear.
-3. Select category **Lunar Tools**.
-4. Add **Lunar Transform Assistant**.
-
-MacroScript metadata:
+MacroScript Metadata는 다음과 같습니다.
 
 ```text
 Category: Lunar Tools
@@ -52,184 +36,126 @@ Internal name: LunarTransformAssistant
 Tooltip: Lunar Transform Assistant
 ```
 
-The launcher first looks for `..\src\LunarTransformAssistant.ms` relative to its own file. It then checks the recommended user-scripts installation path.
+Launcher는 자신의 위치를 기준으로 `..\src\LunarTransformAssistant.ms`를 먼저 찾고, 이후 권장 User Scripts 경로를 확인합니다. 이미 Rollout이 열려 있으면 중복 Dialog를 만들거나 저장된 Source/Targets를 초기화하지 않고 기존 창에 Focus합니다. Action 등록 없이 한 번만 실행하려면 `src/LunarTransformAssistant.ms`를 직접 실행할 수 있습니다.
 
-If the rollout is already open, launching the MacroScript focuses the existing dialog instead of creating a duplicate or resetting the captured Source and Targets. If the existing rollout was closed, it is reopened with its stored rollout state.
-
-For a one-off launch without registering the action, run `src/LunarTransformAssistant.ms` directly from **Scripting > Run Script**.
-
-## Source and Target workflow
-
-The tool provides Manual capture and two callback-tracked ordered selection modes. It never interprets the order of the 3ds Max `selection` collection as click order.
-
-In Manual mode:
-
-1. Select exactly one scene node.
-2. Press **Set Source**.
-3. Select one or more intended Target nodes.
-4. Press **Set Targets**.
-5. Choose an operation.
-
-The Source is automatically excluded if it is present when Targets are captured. Stored nodes are validated before every Source/Target operation. Deleted or invalid Targets are removed safely, and a deleted Source is cleared.
-
-**Clear Targets** clears only the stored Target list. Transform Lock and Visibility operations use the current 3ds Max selection and do not use stored Source or Targets.
-
-## Selection Modes
+## Source / Target Workflow
 
 ### Manual
 
-Select a node and press Set Source.
-Select one or more nodes and press Set Targets.
+1. Scene Node 하나를 선택하고 `Set Source`를 누릅니다.
+2. Target Nodes를 하나 이상 선택하고 `Set Targets`를 누릅니다.
+3. 원하는 Copy 또는 Instance 작업을 실행합니다.
 
-### First Selected = Source
+Target Capture에 Source가 포함되어 있으면 자동 제외합니다. 작업 직전에 저장된 Node를 다시 검증하고, 삭제되거나 유효하지 않은 Target은 안전하게 제거하며 삭제된 Source는 해제합니다. `Clear Targets`는 Manual Target List만 비웁니다.
 
-Reset ordered selection.
-Build the ordered set with any mix of single selections and multiple selections.
-The first node in the flattened batch order becomes Source.
-All later nodes become Targets.
+Transform Lock과 `Unhide Selected Nodes`는 저장된 Source/Targets가 아니라 버튼을 누르는 순간의 현재 3ds Max Selection을 사용합니다.
 
-### Last Selected = Source
+### First Selected = Source / Last Selected = Source
 
-Reset ordered selection.
-Build the ordered set with any mix of single selections and multiple selections.
-The last node in the flattened batch order becomes Source.
-All earlier nodes become Targets.
+1. `Start / Reset Ordered Selection`을 누릅니다.
+2. 단일 선택과 다중 선택을 원하는 순서로 조합합니다.
+3. First Mode에서는 Flattened Batch Order의 첫 Node가 Source, 나머지가 Targets가 됩니다.
+4. Last Mode에서는 마지막 Node가 Source, 앞의 Nodes가 Targets가 됩니다.
 
-Manual Source and Targets are stored separately from ordered selection batches. Switching modes does not clear either state. First Selected and Last Selected share the same batch history, so changing between them immediately reinterprets the active Source and Targets without requiring reselection.
+Manual State와 Ordered Selection Batch History는 서로 독립적으로 저장됩니다. Mode 전환은 어느 State도 지우지 않으며, First/Last Mode는 같은 Batch History를 즉시 재해석합니다.
 
-All transform-channel, Full Transform, and Base Object operations use one common Source/Targets resolver immediately before execution. Transform Lock and Unhide Selected Nodes continue to use the current 3ds Max selection.
+## Ordered Selection 규칙
 
-## Ordered Selection Limitations
+- Node 하나를 추가한 Action은 정확한 Action 순서를 보존하는 Single Selection Batch입니다.
+- 여러 Nodes를 한 번에 추가한 Action은 Multiple Selection Batch입니다. Rectangle Selection과 Select By Name Multi-selection을 지원합니다.
+- Batch는 생성 순서대로 Flatten합니다.
+- Multiple Selection Batch 내부에는 의미 있는 Viewport Click Order가 없으므로 Node Handle 오름차순과 Name Fallback을 이용한 결정적 순서를 사용합니다.
+- Single과 Multiple Batch를 섞을 수 있습니다. 예: single A → multiple B-Z → single Final.
+- Multiple Batch가 하나라도 있으면 UI는 개별 Node Name과 내부 순서를 표시하지 않고 `Multiple Selection` 또는 `Mixed / Multiple Selection` Summary와 Object Count만 표시합니다.
+- Deselect한 Node는 기존 Order에서 제거됩니다. Multiple Batch가 한 Node만 남아도 Batch Type은 Multiple로 유지됩니다.
+- 다시 선택한 한 Node는 새 마지막 Single Batch, 여러 Nodes는 새 마지막 Multiple Batch가 됩니다.
+- 같은 Node는 둘 이상의 Batch에 들어갈 수 없으며, 작업에는 최소 두 개의 유효 Node가 필요합니다.
+- 새로운 Ordered Session 전에는 `Start / Reset Ordered Selection`을 사용합니다.
 
-- Each action that adds one node creates a Single Selection Batch and preserves its exact action order.
-- Each action that adds several nodes creates a Multiple Selection Batch. Rectangle selection and Select By Name multi-selection are supported.
-- Selection batches are flattened in creation order.
-- Nodes inside a Multiple Selection Batch use a stable deterministic order based on ascending node handle, with a name fallback when a handle is unavailable.
-- A Multiple Selection Batch has no meaningful viewport click order. The deterministic handle order is an implementation order, not a claim about individual mouse order.
-- Mixed single and multiple batches are supported. For example, single A, multiple B-Z, then single Final keeps A first and Final last.
-- When any Multiple Selection Batch is present, the UI intentionally hides individual node names and internal order. It shows only a `Multiple Selection` or `Mixed / Multiple Selection` summary and object count.
-- Deselecting removes a node from the order.
-- A Multiple Selection Batch remains a multiple batch if deselection leaves only one node in it.
-- Reselecting one node creates a new last Single Selection Batch. Reselecting several nodes creates a new last Multiple Selection Batch.
-- A node cannot appear in more than one batch.
-- At least two valid nodes are required.
-- Use Start / Reset Ordered Selection before beginning a new ordered selection.
+Callback은 이전 Selection Snapshot과 현재 유효 Selection의 차이를 비교합니다. `NodeEventCallback`이 전달한 AnimHandle Array 순서와 3ds Max `selection` Collection 순서는 사용자 Click Order로 간주하지 않습니다. 삭제된 Node는 Callback, UI Refresh, Operation Validation 시점에 정리됩니다.
 
-The ordered-selection callback compares a stored previous selection snapshot with the current valid selection. The added set determines whether the new batch is Single or Multiple, and the removed set updates existing batches. Callback AnimHandle array order and the 3ds Max `selection` collection order are never treated as user click order. Deleted nodes are removed during callback processing, UI refresh, and operation validation.
+## Copy와 Instance
 
-Normal multi-selection does not invalidate ordered selection. Invalid state is reserved for corrupt internal batch data, callback failure, or a current selection that cannot be reconciled safely because ordered tracking was not reset before it began.
+Copy는 현재 평가값 또는 독립적인 Base Object Copy를 기록합니다.
 
-## Copy versus Instance
+- Selected Transform Channel Copy: 현재 Frame의 값만 복사
+- Full Transform Copy: Source World Transform Matrix 할당
+- Base Object Copy: Source Base Object의 독립 Copy 할당
 
-**Copy** writes the current evaluated value or creates an independent Base Object copy:
+Instance는 Controller 또는 Base Object Reference를 공유합니다.
 
-- Selected transform channels copy values only at the current frame.
-- Full Transform Copy assigns the Source world transform matrix.
-- Base Object Copy assigns an independent copy of the Source Base Object.
-- Later Source changes do not automatically update copied Targets.
+- Selected-channel Instance: 체크한 Component Controller만 공유
+- Full Transform Instance: 전체 Transform Controller 공유
+- Base Object Instance: Source Base Object 공유
 
-**Instance** shares an animation controller or Base Object:
+Instance 관계는 양방향이므로 어느 한쪽의 수정이 같은 Reference를 공유하는 모든 Node에 영향을 줄 수 있습니다. 호환성을 만들기 위한 Controller 자동 변환은 수행하지 않습니다.
 
-- Selected-channel Instance shares the corresponding component controller.
-- Full Transform Instance shares the complete transform controller.
-- Base Object Instance shares the Source Base Object.
-- The relationship is bidirectional. Editing either side may affect every node sharing that controller or Base Object.
+## Transform Channel 동작
 
-Instance operations are intentionally explicit and can replace the Target controller at the exact requested scope. No controller is converted merely to make an operation available.
-
-## Transform channel behavior
-
-The checkbox matrix addresses:
-
-```text
-Position X, Y, Z
-Rotation X, Y, Z
-Scale X, Y, Z
-```
-
-Transform Copy checkboxes and Transform Lock checkboxes are separate controls.
+Transform Matrix는 Position, Rotation, Scale의 X/Y/Z를 제어합니다. Transform Copy Checkbox와 Transform Lock Checkbox는 서로 독립적입니다.
 
 ### Current-value Copy
 
-For independent component tracks, the tool reads the current Source component-controller value and writes it to the corresponding Target component controller at `currentTime`.
-
-Supported independent component structures:
+독립 Component Track이 있는 경우 Source Component Controller의 현재 값을 읽어 Target의 동일 Component에 `currentTime`으로 기록합니다.
 
 - Position: `Position_XYZ`
 - Rotation: `Euler_XYZ`
 - Scale: `ScaleXYZ`
 
-Source and Target `Euler_XYZ` controllers must use the same axis order. A mismatch is skipped because the same X/Y/Z angle does not have the same coordinate interpretation under a different axis order.
+Source와 Target의 `Euler_XYZ` Axis Order가 다르면 같은 X/Y/Z Angle의 좌표 해석이 달라지므로 건너뜁니다.
 
-The ordinary default `Bezier_Scale` controller has no separately assignable X/Y/Z subcontrollers. For **Copy Selected Channels** only, a Source/Target `Bezier_Scale` pair is supported by composing one current scale value: checked components come from the Source and unchecked components retain the Target's evaluated values. This does not replace the scale controller or copy keys. Because `Bezier_Scale` stores a composite scale value, writing at an animated frame may update or create a composite scale key according to the current 3ds Max animation state.
+기본 `Bezier_Scale`은 독립 X/Y/Z Subcontroller가 없습니다. `Copy Selected Channels`에 한해 Source와 Target이 모두 `Bezier_Scale`이면 체크한 Component는 Source, 체크하지 않은 Component는 Target의 평가값으로 합성한 Current Scale Value를 씁니다. Controller 교체나 Key 복사는 하지 않지만, Animated Frame에서는 3ds Max의 일반 Animate State에 따라 Composite Scale Key가 갱신 또는 생성될 수 있습니다.
 
 ### Selected-channel Instance
 
-Selected-channel Instance is available only when both Source and Target expose a compatible, writable independent component controller:
+Source와 Target 모두 호환되고 쓰기 가능한 독립 Component Controller를 제공할 때만 지원합니다.
 
 - `Position_XYZ`
-- `Euler_XYZ` with matching axis order
+- Axis Order가 같은 `Euler_XYZ`
 - `ScaleXYZ`
 
-The tool inspects the actual category controller and component subAnim. It assigns the Source component controller to only the checked Target component. Unchecked components remain untouched.
+실제 Category Controller와 Component SubAnim을 확인해 체크한 Target Component에만 Source Component Controller를 할당합니다. 체크하지 않은 Component는 유지됩니다. `Bezier_Scale`의 개별 Axis Instance는 지원하지 않습니다.
 
-The tool does not replace a controller with Position XYZ, Euler XYZ, or Scale XYZ to force compatibility.
+### 지원하지 않는 Controller 예
 
-## Controller limitations
+- Quaternion / TCB Rotation
+- Rotation List, Position List, Scale List
+- LookAt / Path Constraint
+- Script Controller
+- CAT / Biped Controller
+- Plugin-specific Controller
+- 누락되었거나 쓰기 불가능한 Component SubAnim
+- 서로 다른 Euler Axis Order
 
-The following cases are intentionally unsupported for selected-channel Copy or Instance unless they expose the exact supported safe structure described above:
-
-- Quaternion and TCB Rotation
-- Rotation List, Position List, and Scale List
-- LookAt and Path constraints
-- Script controllers
-- CAT and Biped controllers
-- plugin-specific controllers
-- controller structures with missing or non-writable component subAnims
-- different Euler axis orders
-
-`Bezier_Scale` supports current-value Copy as described above, but not individual-axis controller Instance.
-
-Unsupported cases are skipped with `[LTA][WARN]` or `[LTA][ERROR]` details in the MAXScript Listener. The tool never automatically changes controller type, removes keys, or creates constraints or Wire Parameters.
+지원하지 않는 경우 `[LTA][WARN]` 또는 `[LTA][ERROR]`로 기록하고 해당 작업을 건너뜁니다. Controller Type 변경, Key 삭제, Constraint 또는 Wire Parameter 생성은 수행하지 않습니다.
 
 ## Full Transform
 
-**Copy Full Transform** assigns the Source world transform to each Target. Target parenting is not changed. After assignment, the evaluated Target world matrix is compared with the Source matrix; a rejected or partial result is reported rather than counted as success.
+`Copy Full Transform`은 Source World Transform을 각 Target에 할당하고 Target Parent는 바꾸지 않습니다. 적용 후 Target World Matrix를 Source와 비교해 거부되거나 부분 적용된 결과를 성공으로 집계하지 않습니다.
 
-**Instance Full Transform** explicitly assigns the complete Source transform controller to each Target. If Source and Target parents differ, the operation is allowed but a warning explains that the same shared local controller can produce a different world-space result. Parenting is never changed to compensate.
+`Instance Full Transform`은 Source의 전체 Transform Controller를 Target에 할당합니다. Source와 Target의 Parent가 다르면 같은 Local Controller가 다른 World Transform을 만들 수 있음을 경고하지만 Parenting을 바꾸지는 않습니다.
 
-Full-transform operations can fail or produce a rejected verification result when transform locks, constraints, special rigs, or unsupported controllers prevent assignment.
+Transform Lock, Constraint, Special Rig 또는 비지원 Controller가 할당을 막으면 실패하거나 Verification Rejected로 보고될 수 있습니다.
 
 ## Base Object
 
-Initial Base Object support is limited to ordinary Geometry Base Objects, including primitives and common Editable Poly-compatible geometry.
-
-**Copy Base Object** performs the conceptual operation:
+일반 Geometry Base Object, Primitive 및 흔한 Editable Poly-compatible Geometry를 지원합니다.
 
 ```maxscript
+-- Copy Base Object
 target.baseObject = copy source.baseObject
-```
 
-**Instance Base Object** performs the conceptual operation:
-
-```maxscript
+-- Instance Base Object
 target.baseObject = source.baseObject
 ```
 
-Both operations assign only `baseObject`. They do not clone whole nodes, copy the Source modifier stack, collapse either stack, change parenting, rename Targets, or copy materials. Existing Target modifiers remain above the replacement Base Object when 3ds Max accepts the stack combination.
+오직 `baseObject`만 할당합니다. Whole Node Clone, Source Modifier Stack Copy, Stack Collapse, Parent 변경, Target Rename, Material Copy를 하지 않습니다. 3ds Max가 조합을 허용하면 기존 Target Modifier는 교체된 Base Object 위에 유지됩니다.
 
-Unsupported Base Object cases include:
+Non-Geometry Base Object, XRef Base Object, Group Head, 3ds Max가 거부하는 Object/Modifier Stack 조합은 지원하지 않습니다.
 
-- non-Geometry Base Objects
-- XRef Base Objects
-- group heads
-- incompatible object/modifier stack combinations rejected by 3ds Max
+## Transform Lock
 
-## Transform locks
-
-Lock operations use the current selection. The checked-lock matrix is independent from the transform-copy matrix.
-
-The 3ds Max transform-lock bit order is:
+Lock 작업은 현재 Selection과 별도의 Lock Checkbox Matrix를 사용합니다. 3ds Max Transform Lock Bit 순서는 다음과 같습니다.
 
 ```text
 1 Position X
@@ -243,202 +169,118 @@ The 3ds Max transform-lock bit order is:
 9 Scale Z
 ```
 
-**Lock Checked** and **Unlock Checked** read the existing bitarray, change only checked bits, and verify that unchecked bits retained their state. **Lock All** and **Unlock All** set and verify all nine bits. Controller types and animation keys are not changed.
+`Lock Checked`와 `Unlock Checked`는 기존 BitArray를 읽고 체크한 Bit만 변경한 뒤 나머지가 유지되었는지 검증합니다. `Lock All`과 `Unlock All`은 9개 Bit 전체를 설정하고 검증합니다. Controller Type과 Animation Key는 변경하지 않습니다.
 
 ## Visibility
 
-**Unhide Selected Nodes** uses the current selection and sets only:
+`Unhide Selected Nodes`는 현재 Selection에 대해 다음 값만 변경합니다.
 
 ```maxscript
 node.isNodeHidden = false
 ```
 
-It does not unhide the node's Layer. If the Layer remains hidden, the Listener reports a warning. Other objects on the Layer are never modified.
+Node의 Layer를 Unhide하지 않습니다. Layer가 계속 숨겨져 있으면 Listener에 Warning을 표시하며 같은 Layer의 다른 Object는 변경하지 않습니다.
 
-## Undo, diagnostics, and status
+## Undo, 진단, 지원 범위
 
-- Each scene-changing button executes its batch in one named undo block.
-- One button press is intended to be reversible with one Undo where 3ds Max supports undo for that property/controller assignment.
-- Multiple Targets are processed as a batch.
-- One Target failure does not stop the remaining Targets.
-- `redrawViews()` is called at most once after a batch, and only when at least one change was verified.
-- The UI status line gives a concise result.
-- Per-node reasons and batch summaries are printed with `[LTA][INFO]`, `[LTA][WARN]`, and `[LTA][ERROR]` prefixes.
+- Scene을 바꾸는 각 Button은 하나의 Named Undo Block에서 Batch를 실행합니다.
+- 여러 Targets를 한 Batch로 처리하되 한 Target의 실패가 나머지 처리를 중단하지 않습니다.
+- 변경이 검증된 경우에만 Batch 후 `redrawViews()`를 최대 한 번 호출합니다.
+- UI Status는 간단한 결과를, Listener는 `[LTA][INFO]`, `[LTA][WARN]`, `[LTA][ERROR]` Prefix로 Node별 이유와 Batch Summary를 표시합니다.
+- 주요 지원 범위는 일반 Geometry Node, Standard PRS, Position XYZ, Euler XYZ, Scale XYZ, 일반 Bezier Scale 현재값 Copy, Primitive/Editable Poly-compatible Base Object, Multiple Targets입니다.
+- Special Rig, XRef, Group Head, Non-Geometry Base Object, Plugin-specific Controller는 범위 밖입니다.
 
-## Supported object types
+## 알려진 제한
 
-Primary scope:
+- 선택 Channel은 Controller-space Component이며 서로 다른 Controller Type이나 Euler Axis Order 사이에서 재해석하지 않습니다.
+- Current-value Assignment는 현재 Frame과 3ds Max Animate Mode를 따르므로 Animated Controller에서 Key가 갱신 또는 생성될 수 있습니다.
+- Full Transform Instance는 Local Controller Output을 공유하므로 Parent가 다르면 World Transform도 달라질 수 있습니다.
+- Base Object 교체 가능 여부는 최종적으로 3ds Max가 판단합니다.
+- Node-level Unhide만으로 Layer, Category 또는 Frozen-display 원인의 비가시성을 해제할 수 없습니다.
+- Controller/Base Object Assignment의 실제 Undo 동작과 특수 Production Rig 호환성은 대상 3ds Max Build에서 추가 확인하는 것이 좋습니다.
 
-- ordinary Geometry nodes
-- Standard PRS transform controllers
-- Position XYZ
-- Euler XYZ
-- Scale XYZ
-- ordinary Bezier Scale current-value copying
-- primitive Base Objects
-- Editable Poly-compatible Geometry Base Objects
-- multiple Targets
++## 수동 Runtime Test Checklist
 
-Special rigs, XRefs, group heads, non-Geometry Base Objects, and plugin-specific controllers are outside V1 support.
+### Source / Target
 
-## Known limitations
-
-- An automated smoke test was completed in 3ds Max 2026.3.3 Batch, but the full interactive UI checklist below has not been completed by a human operator.
-- Selected transform channels are controller-space components. The tool does not reinterpret components between different controller types or Euler axis orders.
-- `Bezier_Scale` selected-channel Copy writes a composite current scale value while preserving unchecked evaluated components; it cannot instance individual axis controllers.
-- Current-value assignment follows 3ds Max's animation state at the current frame. With animated controllers, 3ds Max may update/create a key according to its normal controller and Animate-mode behavior.
-- Full Transform Instance shares local controller output. Different parents can therefore produce different world transforms.
-- Base Object replacement compatibility is ultimately decided by 3ds Max. A Target modifier stack that cannot accept the new Base Object is skipped/failed by the host assignment.
-- Node-level unhide cannot make an object visible when its Layer, category, or frozen-display state still hides it.
-- Undo support for controller and Base Object assignments must be verified in the target 3ds Max 2026 build.
-
-## Manual runtime test checklist
-
-### Source and Target
-
-- [ ] Set one valid Source.
-- [ ] Set one Target.
-- [ ] Set multiple Targets.
-- [ ] Delete a stored Target and run an operation.
-- [ ] Accidentally include Source in Target selection.
-- [ ] Switch to First Selected mode and confirm the Manual Source and Targets remain stored.
-- [ ] Switch back to Manual mode and confirm the original Manual state is active.
+- [ ] 유효한 Source 하나를 설정합니다.
+- [ ] Target 하나와 여러 Targets를 각각 설정합니다.
+- [ ] 저장된 Target을 삭제한 뒤 작업을 실행합니다.
+- [ ] Target Capture에 Source를 실수로 포함해 자동 제외되는지 확인합니다.
+- [ ] First Selected Mode로 전환해도 Manual Source/Targets가 유지되는지 확인합니다.
+- [ ] Manual Mode로 돌아와 원래 Manual State가 활성화되는지 확인합니다.
 
 ### Ordered Selection
 
-- [ ] Choose First Selected, reset, then select A, Ctrl+B, Ctrl+C.
-- [ ] Confirm Active Source is A and Active Targets are B and C.
-- [ ] Change only the mode to Last Selected and confirm Active Source is C and Active Targets are A and B.
-- [ ] Deselect B and confirm the order becomes A, C.
-- [ ] Reselect B and confirm the order becomes A, C, B.
-- [ ] Reset, select only A, and confirm Source/Target operations are blocked.
-- [ ] Reset, rectangle-select at least 20 nodes, and confirm a valid Multiple Selection summary and stable Source.
-- [ ] Repeat the same multi-selection with a different apparent selection order and confirm the same Source is resolved.
-- [ ] Test single A, then a multiple batch, and confirm A is Source in First Selected mode.
-- [ ] Test a multiple batch, then single Final, and confirm Final is Source in Last Selected mode.
-- [ ] Test single A, multiple B-Z, then single Final in both ordered modes.
-- [ ] Deselect several nodes from a Multiple Selection Batch and confirm only those nodes are removed.
-- [ ] Deselect and reselect one node and confirm it becomes a new last Single Selection Batch.
-- [ ] Confirm individual names are hidden whenever any Multiple Selection Batch exists.
-- [ ] Delete a stored ordered node and confirm it is removed without an exception.
-- [ ] Close and reopen the rollout, then confirm one selection event is recorded only once.
+- [ ] First Selected를 선택하고 Reset한 뒤 A, `Ctrl+B`, `Ctrl+C` 순서로 선택합니다.
+- [ ] Active Source가 A이고 Active Targets가 B/C인지 확인합니다.
+- [ ] Mode만 Last Selected로 바꾸어 Active Source가 C, Targets가 A/B로 재해석되는지 확인합니다.
+- [ ] B를 Deselect했을 때 Order가 A/C, 다시 선택했을 때 A/C/B가 되는지 확인합니다.
+- [ ] Reset 후 A만 선택하면 Source/Target 작업이 차단되는지 확인합니다.
+- [ ] 최소 20개 Node를 Rectangle-select해 유효한 Multiple Selection Summary와 안정적인 Source가 나오는지 확인합니다.
+- [ ] 겉보기 Selection Order가 달라도 같은 Multi-selection에서 같은 Source가 결정되는지 확인합니다.
+- [ ] Single→Multiple, Multiple→Single, Single→Multiple→Single 조합을 First/Last Mode에서 확인합니다.
+- [ ] Multiple Batch의 일부 Node를 Deselect했을 때 해당 Nodes만 제거되는지 확인합니다.
+- [ ] Node 하나를 Deselect 후 Reselect했을 때 새 마지막 Single Batch가 되는지 확인합니다.
+- [ ] Multiple Batch가 있으면 개별 Name과 내부 Order가 숨겨지는지 확인합니다.
+- [ ] 저장된 Ordered Node를 삭제해도 예외 없이 제거되는지 확인합니다.
+- [ ] Rollout을 닫고 다시 열었을 때 Selection Event가 한 번만 기록되는지 확인합니다.
 
-### Transform Copy
+### Transform Copy / Instance
 
-- [ ] Copy only Position X.
-- [ ] Copy Position X and Z.
-- [ ] Copy Rotation Y.
-- [ ] Copy non-uniform Scale X only.
-- [ ] Confirm unchecked channels remain unchanged.
-- [ ] Test at a non-zero animation frame.
+- [ ] Position X만, Position X/Z, Rotation Y, Non-uniform Scale X만 각각 Copy합니다.
+- [ ] 체크하지 않은 Channel이 유지되는지 확인합니다.
+- [ ] Non-zero Animation Frame에서 Copy를 확인합니다.
+- [ ] Position XYZ Controller에서 Position X만 Instance하고 Controller Reference가 공유되는지 확인합니다.
+- [ ] Target 수정이 Source에도 반영되는 양방향 Instance를 확인합니다.
+- [ ] 비지원 Controller 작업이 Target을 변경하지 않는지 확인합니다.
 
-### Transform Instance
+### Full Transform / Base Object
 
-- [ ] Instance Position X with Position XYZ controllers.
-- [ ] Confirm Source and Target share the controller.
-- [ ] Modify the Target and confirm Source also changes.
-- [ ] Test unsupported controller types.
-- [ ] Confirm unsupported operations leave Target unchanged.
+- [ ] Parent가 없는 경우, 같은 Parent, 다른 Parent에서 Full Transform Copy를 확인합니다.
+- [ ] 같은 Parent에서 Full Transform Instance를 확인하고 다른 Parent Warning을 확인합니다.
+- [ ] Sphere Source에서 Box Target으로 Base Object Copy/Instance를 실행합니다.
+- [ ] Target Transform, Material, Modifier Stack이 유지되는지 확인합니다.
+- [ ] Copy는 독립 Geometry, Instance는 공유 Base Object가 되는지 확인합니다.
+- [ ] Multiple Targets를 함께 확인합니다.
 
-### Full Transform
+### Visibility / Lock / Undo
 
-- [ ] Copy full transform without parents.
-- [ ] Copy full transform with identical parents.
-- [ ] Copy full transform with different parents.
-- [ ] Instance full transform with identical parents.
-- [ ] Confirm different-parent warning appears.
+- [ ] 숨겨진 Node를 Unhide하고, 숨겨진 Layer에서는 Warning이 표시되는지 확인합니다.
+- [ ] 같은 Layer의 다른 Objects가 변경되지 않는지 확인합니다.
+- [ ] Position X Lock, Rotation Y 추가 Lock, Position X Unlock을 순서대로 실행해 나머지 Flag 보존을 확인합니다.
+- [ ] Lock All / Unlock All과 Multiple Selection을 확인합니다.
+- [ ] 각 Button 실행이 지원 범위에서 하나의 Undo로 복원되는지 확인합니다.
 
-### Base Object
+## 정적 검토 범위
 
-- [ ] Sphere Source to Box Target.
-- [ ] Confirm Target transform remains unchanged.
-- [ ] Confirm Target material remains unchanged.
-- [ ] Confirm Target modifiers remain.
-- [ ] Confirm Copy produces independent geometry.
-- [ ] Confirm Instance shares the Base Object.
-- [ ] Test multiple Targets.
+구현에서 다음 항목을 검토했습니다.
 
-### Visibility
+- Manual Capture State와 Callback 기반 Ordered State의 분리
+- `selection[]` Collection Order를 Click Order로 사용하지 않는 구조
+- Single/Multiple Batch를 Flatten한 공통 First/Last Source Resolver
+- Callback Handle Order를 신뢰하지 않는 Previous/Current Selection Snapshot Diff
+- Multiple Batch 내부의 결정적 Node Handle Order
+- Duplicate 방지, Deselect 제거, Empty Batch 정리, Reselect Append
+- Rollout-local State와 의도된 Global Rollout Reference 하나
+- Manual/Ordered State의 `isValidNode` 기반 Stale Node 정리
+- `NodeEventCallback` 등록, 해제, 중복 등록 방지
+- Scene-changing Button Path당 하나의 Undo Context
+- Target별 예외 격리와 Diagnostic Summary
+- 체크하지 않은 Channel과 Lock State 보존
+- Controller Conversion, Stack Collapse, `instanceReplace`, Constraint, Wire Parameter 부재
+- Base Object-only Assignment와 Target Modifier Stack 보존
+- 변경된 Batch당 최대 한 번의 Redraw
+- 중복 MacroScript 등록과 Dialog Reopen 동작
 
-- [ ] Hide a selected node and unhide it.
-- [ ] Hide its Layer and test the warning.
-- [ ] Confirm other Layer objects remain unchanged.
+## 검증 상태
 
-### Transform Lock
+Autodesk 3ds Max 2026.3.3 Batch에서 Main Rollout, MacroScript Launch/Reopen, Position X Copy/Instance, 부분 `Bezier_Scale` Copy, Transform Lock, Base Object Copy/Instance, Target Modifier 보존, Full Transform Copy/Instance, 세 Selection Mode, Mixed Single/Multiple Batch, Deselect/Reselect, 삭제 Node 정리, Callback Release/Reopen을 자동 검증했습니다.
 
-- [ ] Lock Position X only.
-- [ ] Add Rotation Y lock while preserving Position X.
-- [ ] Unlock Position X while preserving Rotation Y.
-- [ ] Lock All.
-- [ ] Unlock All.
-- [ ] Test multiple selected nodes.
+Batch Harness는 실제 `NodeEventCallback` Handler에 AnimHandle Array를 전달했습니다. 실제 Viewport `Ctrl+Click`, Rectangle Selection, Select By Name Gesture와 UI 표시, One-step Undo, Non-zero-frame Animation, Layer-hidden Warning, 특수 Rig 및 다양한 Production Modifier Stack은 일반 3ds Max UI에서 수동 확인 대상입니다.
 
-### Undo
+Batch Log의 `nToolFloat`와 `vexus_startup.ms` 오류는 기존 Third-party Startup Script에서 발생한 별도 Noise이며 Lunar Transform Assistant Script 오류로 판정되지 않았습니다.
 
-- [ ] Confirm each button press can be undone as one operation where supported.
+## 라이선스
 
-## Verification
-
-### Static code review completed
-
-The implementation was reviewed for:
-
-- separate Manual capture and callback-tracked ordered Source/Target state
-- no use of `selection[]` collection order as click order
-- shared Source First/Source Last resolver over flattened single and multiple selection batches
-- previous/current selection snapshot differencing without trusting callback handle order
-- deterministic node-handle ordering inside Multiple Selection Batches
-- duplicate prevention, deselect removal, empty-batch cleanup, and reselect append behavior
-- rollout-local state and a single intentional global rollout reference
-- stale-node cleanup with `isValidNode` for Manual and ordered state
-- NodeEventCallback registration, release, and duplicate-registration prevention
-- one undo context per scene-changing button path
-- per-Target exception isolation and diagnostic summaries
-- preservation of unchecked channel and lock states
-- absence of controller conversion, stack collapse, `instanceReplace`, constraints, and Wire Parameters
-- Base Object-only assignment with Target modifier-stack preservation
-- one redraw at most after each changed batch
-- duplicate MacroScript registration and dialog reopening behavior
-
-### Runtime verification in 3ds Max completed (automated smoke scope)
-
-The files were loaded in Autodesk 3ds Max 2026.3.3 Batch and the following checks passed:
-
-- main rollout definition and open event
-- MacroScript registration and launch/reopen
-- Position X current-value Copy with Position XYZ
-- Position X controller Instance with shared-controller verification
-- partial X-only Copy for a default Bezier Scale pair while preserving Y/Z
-- Lock Checked and Unlock Checked while preserving unchecked flags
-- Base Object support validation
-- Sphere Base Object Copy to a Box Target as an independent object
-- Base Object Instance sharing
-- Target Bend modifier preservation through Base Object Copy and Instance
-- Full world-transform Copy with parent preservation
-- Full transform-controller Instance with parent preservation
-- Manual Source/Targets resolver and Manual state preservation across mode changes
-- First Selected and Last Selected reinterpretation of one shared flattened batch history
-- deselect removal and reselect append behavior
-- simultaneous multi-selection capture as a deterministic Multiple Selection Batch
-- sequential-only, multiple-only (20+ objects), single-to-multiple, multiple-to-single, and single-multiple-single resolution
-- stable Source resolution for repeated multiple selection
-- partial deselection from a Multiple Selection Batch and single-node reselect as a new batch
-- deleted-node cleanup from Manual and ordered state
-- callback release on rollout close and one callback registration on reopen
-- Copy Selected Channels, Copy Full Transform, and Copy Base Object in all three Selection Modes
-- selected-channel, Full Transform, and Base Object Instance regression checks after Selection Mode integration
-- MacroScript launch through the project-relative `..\src` path with the expanded rollout
-
-The Batch harness supplied actual AnimHandle arrays to the same selection/deletion callback functions registered by `NodeEventCallback`. Physical viewport Ctrl+Click, rectangle selection, and Select By Name gestures remain part of manual interactive verification because Batch mode has no reliable mouse gesture stream.
-
-3ds Max Batch also reported unrelated errors from pre-existing third-party startup scripts (`nToolFloat` and `vexus_startup.ms`). No error was attributed to `LunarTransformAssistant.ms` or `LunarTransformAssistant.mcr`, and the Lunar smoke report completed all checks above.
-
-### Manual interactive verification still required
-
-Use the checklist above in the normal 3ds Max UI to verify button interaction, status-label presentation, Listener wording, one-step Undo behavior, non-zero-frame animation behavior, locked/constraint controller rejection, Layer-hidden warnings, unsupported rigs, and a wider range of production modifier stacks.
-
-## License
-
-This tool is licensed under the GNU General Public License v3.0.
-
-See [../LICENSE](../LICENSE) for details.
+이 도구는 GNU General Public License v3.0으로 배포됩니다. 자세한 내용은 [../LICENSE](../LICENSE)를 참조하세요.
