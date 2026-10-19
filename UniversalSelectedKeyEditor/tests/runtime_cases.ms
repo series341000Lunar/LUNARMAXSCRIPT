@@ -26,6 +26,15 @@ fn USKET_Refused row operation target value =
     try (USKET_CommitEdit row operation target value) catch (failed = true; format "REFUSAL | %\n" (getCurrentException()) to:USKET_Out)
     failed
 )
+fn USKET_Pump milliseconds =
+(
+    local deadline = timeStamp() + milliseconds
+    while timeStamp() < deadline do
+    (
+        windows.processPostedMessages()
+        (dotNetClass "System.Threading.Thread").Sleep 10
+    )
+)
 format "Host: %\n" (maxVersion()) to:USKET_Out
 local savedSelection = selection as array
 local savedTime = sliderTime
@@ -170,6 +179,72 @@ try
         item.Selected = true
         USKET_Check (USKET_UI.GetSelectedRow() == USKET_Rows[tag]) "Reordered list uses stable row Tag"
     )
+    local callbackCount = (for entry in (showregisteredTimeCallbacks asArray:true) where entry[3] == USKET_TimeCallback collect entry).count
+    USKET_Check (callbackCount == 1) "Time callback registered exactly once"
+    USKET_UI.lblStatus.text = "NO_KEY_SENTINEL"
+    sliderTime = 3f
+    USKET_Pump 300
+    USKET_Check (USKET_UI.lblStatus.text == "NO_KEY_SENTINEL") "Unkeyed frame does not refresh"
+    undo "USKE Tests - External value before time jump" on ((getKey c (getKeyIndex c 40f)).value = 88.0)
+    sliderTime = 40f
+    USKET_Pump 350
+    USKET_Check ((findString USKET_UI.lblStatus.text "Auto @ 40") != undefined) "sliderTime assignment triggers delayed auto refresh on keyed frame"
+    local freshRows = for r in USKET_Rows where r.controllerHandle == getHandleByAnim c and r.keyTime == 40f collect r
+    USKET_Check (freshRows.count == 1 and freshRows[1].sampledValue == 88.0) "Auto refresh reads current key value from scene"
+    USKET_Check ((USKET_UI.GetSelectedRow()).keyTime == 40f) "Auto refresh selects the current sliderTime row"
+    USKET_Check (USKET_UI.txFrame.Text as string == "40") "Auto-selected key populates editor with current frame"
+    sliderTime = 0f
+    USKET_Pump 350
+    USKET_Check ((USKET_UI.GetSelectedRow()).controllerHandle == getHandleByAnim c and (USKET_UI.GetSelectedRow()).keyTime == 0f) "Multiple current-frame keys prefer previously selected controller"
+    sliderTime = 10f
+    USKET_Pump 350
+    USKET_Check ((USKET_UI.GetSelectedRow()).keyTime == 10f) "Missing preferred track falls back to another current-frame row"
+    -- More rows than the viewport can hold, with the destination near the end.
+    undo "USKE Tests - Scroll fixture keys" on
+        (for t = 50 to 100 do (addNewKey c (t * 1f)).value = t as float)
+    sliderTime = 100f
+    USKET_Pump 1000
+    local selectedItem = USKET_UI.lv.SelectedItems.Item[0]
+    format "SCROLL PROBE | slider:% selected:% status:% count:% topIndex:% bounds:% clientHeight:%\n" sliderTime (USKET_UI.GetSelectedRow()).keyTime USKET_UI.lblStatus.text USKET_UI.lv.Items.Count USKET_UI.lv.TopItem.Index selectedItem.Bounds USKET_UI.lv.ClientSize.Height to:USKET_Out
+    USKET_Check ((USKET_UI.GetSelectedRow()).keyTime == 100f) "Auto refresh selects a keyed frame far down a long list"
+    USKET_Check (selectedItem.Bounds.Top >= 0 and selectedItem.Bounds.Bottom <= USKET_UI.lv.ClientSize.Height and USKET_UI.lv.TopItem.Index > 0) "EnsureVisible scrolls far-down selected row into list viewport"
+    USKET_Check (selectedItem.Focused) "Auto-selected current-frame row has list item focus"
+    USKET_UI.rbMode.state = 1
+    USKET_UI.RefreshList()
+    deselectKeys c
+    USKET_UI.lblStatus.text = "UNSELECTED_KEY_SENTINEL"
+    sliderTime = 39f
+    USKET_Pump 250
+    sliderTime = 40f
+    USKET_Pump 350
+    USKET_Check ((findString USKET_UI.lblStatus.text "Auto @ 40") != undefined) "SELECT mode auto-refreshes on unselected current-frame key"
+    USKET_Check ((USKET_UI.GetSelectedRow()).keyTime == 40f) "Unselected current-frame key is displayed and selected in list"
+    USKET_Check (not (isKeySelected c (getKeyIndex c 40f))) "Automatic list selection leaves scene key unselected"
+    USKET_Check ((for r in USKET_Rows where r.controllerHandle == getHandleByAnim c and r.keyTime == 100f collect r).count == 0) "SELECT does not include unselected keys at other frames"
+    selectKey c (getKeyIndex c 40f)
+    sliderTime = 39f
+    USKET_Pump 250
+    sliderTime = 40f
+    USKET_Pump 350
+    USKET_Check ((findString USKET_UI.lblStatus.text "Auto @ 40") != undefined) "SELECT mode refreshes on selected key"
+    undo "USKE Tests - Uncached key" on ((addNewKey c 45f).value = 777.0)
+    sliderTime = 45f
+    USKET_Pump 350
+    freshRows = for r in USKET_Rows where r.controllerHandle == getHandleByAnim c and r.keyTime == 45f collect r
+    USKET_Check (freshRows.count == 1 and freshRows[1].sampledValue == 777.0) "New unselected uncached key triggers live probe and refresh"
+    USKET_Check ((USKET_UI.GetSelectedRow()).keyTime == 45f and not (isKeySelected c (getKeyIndex c 45f))) "New unselected key auto-focuses without changing scene selection"
+    USKET_UI.lblStatus.text = "DEBOUNCE_SENTINEL"
+    sliderTime = 40f
+    sliderTime = 41f
+    USKET_Pump 350
+    USKET_Check (USKET_UI.lblStatus.text == "DEBOUNCE_SENTINEL") "Rapid changes debounce to final unkeyed frame"
+    local registeredFunction = USKET_TimeCallback
+    destroyDialog USKET_UI
+    callbackCount = (for entry in (showregisteredTimeCallbacks asArray:true) where entry[3] == registeredFunction collect entry).count
+    USKET_Check (callbackCount == 0 and USKET_TimeCallback == undefined) "Closing UI unregisters callback"
+    createDialog USKET_UI 900 668 style:#(#style_titlebar, #style_sysmenu)
+    callbackCount = (for entry in (showregisteredTimeCallbacks asArray:true) where entry[3] == USKET_TimeCallback collect entry).count
+    USKET_Check (callbackCount == 1) "Reopening UI registers one callback without duplicates"
     destroyDialog USKET_UI
 )
 catch (fatal = getCurrentException() as string; USKET_Check false ("FATAL: " + fatal); format "%\n" (getCurrentExceptionStackTrace()) to:USKET_Out)

@@ -1,5 +1,5 @@
 /*
- Universal Selected Key Editor - v0.2 (existing-key editor)
+ Universal Selected Key Editor - v0.5 (existing-key editor)
  Intended host: Autodesk 3ds Max 2027 / MAXScript
  See README.md and tests/runtime_report.txt for verification scope.
 
@@ -18,6 +18,9 @@
 */
 (
     global LKE_UI
+    global LKE_TimeCallback
+    if LKE_TimeCallback != undefined do try (unregisterTimeCallback LKE_TimeCallback) catch ()
+    LKE_TimeCallback = undefined
     try (destroyDialog LKE_UI) catch ()
 
     global LKE_Rows = #()
@@ -55,7 +58,7 @@
         if (classOf v) == Float then (formattedPrint v format:".9g") else (v as string)
     )
 
-    fn LKE_AddController c displayPath accessPath nodeHandle allKeys subIndices =
+    fn LKE_AddController c displayPath accessPath nodeHandle allKeys subIndices includeTime:undefined =
     (
         local handle = try (getHandleByAnim c) catch (undefined)
         if handle == undefined then return false
@@ -68,7 +71,8 @@
         for ki = 1 to n do
         (
             local selected = try (isKeySelected c ki) catch (false)
-            if (allKeys or selected) do
+            local atCurrentTime = includeTime != undefined and (try ((getKeyTime c ki) == includeTime) catch (false))
+            if (allKeys or selected or atCurrentTime) do
             (
                 local k = try (getKey c ki) catch (undefined)
                 if k != undefined do
@@ -91,12 +95,12 @@
         true
     )
 
-    fn LKE_Walk anim displayPath accessPath nodeHandle allKeys depth subIndices =
+    fn LKE_Walk anim displayPath accessPath nodeHandle allKeys depth subIndices includeTime:undefined =
     (
         if depth > 24 then return false
 
         local c = try (anim.controller) catch (undefined)
-        if c != undefined do LKE_AddController c displayPath accessPath nodeHandle allKeys subIndices
+        if c != undefined do LKE_AddController c displayPath accessPath nodeHandle allKeys subIndices includeTime:includeTime
 
         local n = try (anim.numSubs) catch (0)
         for i = 1 to n do
@@ -110,7 +114,7 @@
                 LKE_Walk child \
                     (displayPath + " > " + childName) \
                     (accessPath + "[" + (i as string) + "]") \
-                    nodeHandle allKeys (depth + 1) childIndices
+                    nodeHandle allKeys (depth + 1) childIndices includeTime:includeTime
             )
         )
         true
@@ -130,6 +134,34 @@
         local ki = try (getKeyIndex c row.keyTime) catch (0)
         if ki == undefined or ki < 1 then return undefined
         #(c, ki, (getKey c ki))
+    )
+
+    -- Probe the live selected nodes, not cached rows: newly added keys are detected too.
+    fn LKE_HasKeyAtTime anim t allKeys seen depth =
+    (
+        if depth > 24 then return false
+        local c = try (anim.controller) catch (undefined)
+        if c != undefined do
+        (
+            local handle = try (getHandleByAnim c) catch (undefined)
+            if handle != undefined and findItem seen handle == 0 do
+            (
+                append seen handle
+                local idx = try (getKeyIndex c t) catch (0)
+                if idx != undefined and idx > 0 do
+                (
+                    local readable = try ((getKey c idx) != undefined) catch (false)
+                    if readable and (allKeys or (try (isKeySelected c idx) catch (false))) then return true
+                )
+            )
+        )
+        local n = try (anim.numSubs) catch (0)
+        for i = 1 to n do
+        (
+            local child = try (getSubAnim anim i) catch (undefined)
+            if child != undefined and (LKE_HasKeyAtTime child t allKeys seen (depth + 1)) then return true
+        )
+        false
     )
 
     fn LKE_ParseTyped input oldValue controller:undefined =
@@ -309,11 +341,14 @@
         true
     )
 
-    rollout LKE_UI "Universal Selected Key Editor  |  0.2" width:900 height:668
+    rollout LKE_UI "Universal Selected Key Editor  |  0.5" width:900 height:668
     (
         local displayedValueText = ""
+        local pendingTime = undefined
+        local autoRefreshBusy = false
+        timer refreshDelay interval:180 active:false
         button bScan "REFRESH / SCAN" pos:[12,10] width:190 height:30
-        radiobuttons rbMode "MODE (selected objects)" labels:#("SELECT - Selected keys", "ALL - All keys") default:1 columns:2 pos:[218,3] width:650 height:39
+        radiobuttons rbMode "MODE (selected objects)" labels:#("SELECT - Selected / current frame", "ALL - All keys") default:1 columns:2 pos:[218,3] width:650 height:39
         label lblStatus "Select an object, then click REFRESH." pos:[12,44] width:870 height:17
 
         dotNetControl lv "System.Windows.Forms.ListView" pos:[12,69] width:876 height:348
@@ -373,8 +408,39 @@
             true
         )
 
-        fn RefreshList =
+        fn SelectTimeRow t preferredController:undefined =
         (
+            local chosen = 0
+            for ri = 1 to LKE_Rows.count where LKE_Rows[ri].keyTime == t do
+            (
+                if chosen == 0 do chosen = ri
+                if preferredController != undefined and LKE_Rows[ri].controllerHandle == preferredController do
+                (
+                    chosen = ri
+                    exit
+                )
+            )
+            if chosen == 0 then return false
+            -- Resolve by Tag so selection is independent of displayed item ordering.
+            for i = 0 to lv.Items.Count - 1 do
+            (
+                local item = lv.Items.Item[i]
+                if (item.Tag as integer) == chosen do
+                (
+                    item.Selected = true
+                    item.Focused = true
+                    item.EnsureVisible()
+                    DisplayRow LKE_Rows[chosen]
+                    return true
+                )
+            )
+            false
+        )
+
+        fn RefreshList focusTime:undefined =
+        (
+            local previousRow = GetSelectedRow()
+            local preferredController = if previousRow == undefined then undefined else previousRow.controllerHandle
             lv.BeginUpdate()
             lv.Items.Clear()
             LKE_Rows = #()
@@ -390,7 +456,7 @@
             for o in selection where isValidNode o do
             (
                 local nodeHandle = getHandleByAnim o
-                LKE_Walk o o.name ("(getAnimByHandle " + (nodeHandle as string) + ")") nodeHandle (rbMode.state == 2) 0 #()
+                LKE_Walk o o.name ("(getAnimByHandle " + (nodeHandle as string) + ")") nodeHandle (rbMode.state == 2) 0 #() includeTime:sliderTime
             )
 
             for ri = 1 to LKE_Rows.count do
@@ -418,9 +484,12 @@
             lblStatus.text = (if rbMode.state == 1 then "SELECT | " else "ALL | ") + (LKE_Rows.count as string) + " keys found on " + (selection.count as string) + " selected object(s)."
             if LKE_Rows.count > 0 then
             (
-                lv.Items.Item[0].Selected = true
-                lv.Items.Item[0].Focused = true
-                DisplayRow LKE_Rows[1]
+                if focusTime == undefined or not (SelectTimeRow focusTime preferredController:preferredController) do
+                (
+                    lv.Items.Item[0].Selected = true
+                    lv.Items.Item[0].Focused = true
+                    DisplayRow LKE_Rows[1]
+                )
             )
             else if rbMode.state == 1 then
                 lblStatus.text += "   Select keys and REFRESH, or choose ALL."
@@ -458,6 +527,57 @@
             #(r, context[1], context[2], context[3], newValue)
         )
 
+        fn AutoRefreshAtTime t =
+        (
+            if not LKE_UI.isDisplayed or autoRefreshBusy or t == undefined or sliderTime != t then return false
+            autoRefreshBusy = true
+            local refreshed = false
+            try
+            (
+                local hit = false
+                local seen = #()
+                for node in selection where isValidNode node and not hit do
+                    hit = LKE_HasKeyAtTime node t true seen 0
+                if hit do
+                (
+                    refreshed = RefreshList focusTime:t
+                    if refreshed do lblStatus.text += "   Auto @ " + LKE_FmtTime t
+                )
+            )
+            catch (lblStatus.text = "Auto refresh failed: " + (getCurrentException() as string))
+            autoRefreshBusy = false
+            refreshed
+        )
+
+        fn OnTimeChanged =
+        (
+            -- Keep the time callback cheap; scan only after the slider settles.
+            try
+            (
+                if LKE_UI.isDisplayed and not autoRefreshBusy do
+                (
+                    pendingTime = sliderTime
+                    refreshDelay.active = false
+                    refreshDelay.active = true
+                )
+            )
+            catch ()
+        )
+
+        on refreshDelay tick do
+        (
+            refreshDelay.active = false
+            AutoRefreshAtTime pendingTime
+        )
+
+        on LKE_UI close do
+        (
+            refreshDelay.active = false
+            pendingTime = undefined
+            try (unregisterTimeCallback OnTimeChanged) catch ()
+            if LKE_TimeCallback == OnTimeChanged do LKE_TimeCallback = undefined
+        )
+
         on LKE_UI open do
         (
             lv.View = (dotNetClass "System.Windows.Forms.View").Details
@@ -480,6 +600,8 @@
             txAccess.ScrollBars = (dotNetClass "System.Windows.Forms.ScrollBars").Horizontal
 
             RefreshList()
+            LKE_TimeCallback = OnTimeChanged
+            registerTimeCallback LKE_TimeCallback
         )
 
         on lv SelectedIndexChanged sender args do

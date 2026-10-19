@@ -42,5 +42,27 @@ PASS | UI ALL mode refresh shows more keys
 PASS | UI resolves selected row into write context
 PASS | Time-only move ignores unapplied value text
 PASS | Reordered list uses stable row Tag
-SUMMARY: 39 passed; 0 failed
+PASS | Time callback registered exactly once
+PASS | Unkeyed frame does not refresh
+PASS | sliderTime assignment triggers delayed auto refresh on keyed frame
+PASS | Auto refresh reads current key value from scene
+PASS | Auto refresh selects the current sliderTime row
+PASS | Auto-selected key populates editor with current frame
+PASS | Multiple current-frame keys prefer previously selected controller
+PASS | Missing preferred track falls back to another current-frame row
+SCROLL PROBE | slider:100f selected:100f status:ALL | 60 keys found on 1 selected object(s).   Auto @ 100 count:60 topIndex:49 bounds:dotNetObject:System.Drawing.Rectangle clientHeight:518
+PASS | Auto refresh selects a keyed frame far down a long list
+PASS | EnsureVisible scrolls far-down selected row into list viewport
+PASS | Auto-selected current-frame row has list item focus
+PASS | SELECT mode auto-refreshes on unselected current-frame key
+PASS | Unselected current-frame key is displayed and selected in list
+PASS | Automatic list selection leaves scene key unselected
+PASS | SELECT does not include unselected keys at other frames
+PASS | SELECT mode refreshes on selected key
+PASS | New unselected uncached key triggers live probe and refresh
+PASS | New unselected key auto-focuses without changing scene selection
+PASS | Rapid changes debounce to final unkeyed frame
+PASS | Closing UI unregisters callback
+PASS | Reopening UI registers one callback without duplicates
+SUMMARY: 60 passed; 0 failed
 Manual visual acceptance / V-Ray / tyFlow / native Integer controller: NOT TESTED
