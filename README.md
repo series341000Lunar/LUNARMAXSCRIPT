@@ -2,7 +2,7 @@
 
 [한국어](README.md) · [Català](README.ca.md)
 
-Autodesk 3ds Max 제작 작업을 보조하는 개인용 MAXScript 도구 모음입니다. 각 도구는 저장소 최상위의 독립 디렉터리에 있으며, 구현 파일·테스트·도구별 한국어/Català 문서를 함께 관리합니다.
+Autodesk 3ds Max 제작 작업을 보조하는 개인용 MAXScript 도구 모음과 Blender용 Add-on을 함께 관리합니다. 각 도구는 저장소 최상위의 독립 디렉터리에 있으며, 구현 파일·테스트·도구별 한국어/Català 문서를 함께 관리합니다.
 
 ## 도구
 
@@ -46,6 +46,14 @@ Editable Poly face Material ID와 Multi/Sub-Object material 배열을 Master 기
 - [MAXScript 소스](LunarVRayMtlBatchOverride/src/Lunar_VRayMtl_Batch_Override.ms)
 - 테스트: [Core Smoke](LunarVRayMtlBatchOverride/tests/Lunar_VRayMtl_Batch_Override_smoke.ms) · [SME Regression](LunarVRayMtlBatchOverride/tests/Lunar_VRayMtl_Batch_Override_sme_regression.ms) · [Property Probe](LunarVRayMtlBatchOverride/tests/VRayMtl_property_probe.ms)
 
+### Renew Parent Animation (Blender)
+
+선택한 Child들의 evaluated World motion을 먼저 캡처한 뒤 Active Parent 기준의 네이티브 Transform Action으로 굽고, 샘플 프레임의 World-space 오차를 검증합니다.
+
+- 문서: [한국어](RenewParentAnimation/README.md) · [Català](RenewParentAnimation/README.ca.md)
+- [Blender Add-on](RenewParentAnimation/renew_parent_animation.py)
+- [Blender Smoke Test](RenewParentAnimation/tests/test_renew_parent_animation.py)
+
 ## 저장소 구조
 
 공용 파일은 저장소 Root에 두고, 각 도구의 구현·테스트·문서는 해당 도구 디렉터리 안에 둡니다.
@@ -60,12 +68,13 @@ LUNARMAXSCRIPT/
 ├── LunarMaterialIDNormalizer/
 ├── LunarTransformAssistant/
 ├── LunarTyFlowPlacement/
-└── LunarVRayMtlBatchOverride/
+├── LunarVRayMtlBatchOverride/
+└── RenewParentAnimation/
 ```
 
 ## 지원 환경
 
-도구는 Autodesk 3ds Max 2026용 MAXScript로 작성되었습니다. V-Ray 또는 tyFlow를 사용하는 도구는 각 README에 기록된 Plugin Version과 검증 범위를 확인하세요.
+MAXScript 도구는 Autodesk 3ds Max 2026용입니다. V-Ray 또는 tyFlow를 사용하는 도구는 각 README에 기록된 Plugin Version과 검증 범위를 확인하세요. `Renew Parent Animation`은 Blender 4.x용 Python Add-on이며 Blender 4.4.3/4.5.3에서 검증했습니다.
 
 ## 라이선스
 

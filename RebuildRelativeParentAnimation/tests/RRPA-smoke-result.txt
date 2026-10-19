@@ -1,0 +1,30 @@
+Rebuild Relative Parent Animation smoke - 3ds Max 2027
+Source loaded
+PASS: A translation PASS: Frames: 11, Children: 1
+PASS: A hierarchy created
+PASS: A native PRS controller
+PASS: A editable Euler XYZ
+PASS: A frame 0 relative offset
+PASS: A frame 10 relative offset
+PASS: A geometry and object offset unchanged
+PASS: A parent controller unchanged
+PASS: B parent rotation and child orbit PASS: Frames: 11, Children: 1
+PASS: B numeric world TR within tolerance
+PASS: C three children PASS: Frames: 11, Children: 3
+PASS: C hierarchy C_Child_1
+PASS: C hierarchy C_Child_2
+PASS: C hierarchy C_Child_3
+PASS: D Position/Orientation Constraint source PASS: Frames: 11, Children: 1
+PASS: D constraint source replaced with editable PRS
+PASS: E three sequential rebuilds PASS
+PASS: E four-level hierarchy
+PASS: Scale ON full basis PASS: Frames: 11, Children: 1
+PASS: Scale ON native controller
+PASS: Euler 180 boundary PASS: Frames: 11, Children: 1
+PASS: Euler continuity: -179.0 to -181.0
+PASS: Existing Parent replacement PASS: Frames: 11, Children: 1
+PASS: Existing Parent replaced
+PASS: Singular Parent rejected: -- Runtime error: Singular Parent matrix at frame 0f.
+PASS: Singular rejection leaves Child unchanged
+Passed: 26
+Failed: 0

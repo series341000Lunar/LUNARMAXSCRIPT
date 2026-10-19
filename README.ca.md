@@ -2,7 +2,7 @@
 
 [한국어](README.md) · [Català](README.ca.md)
 
-Col·lecció personal d'eines MAXScript per assistir tasques de producció a Autodesk 3ds Max. Cada eina viu en un directori independent de primer nivell i manté conjuntament la implementació, les proves i la documentació específica en coreà i català.
+Col·lecció personal d'eines MAXScript per a Autodesk 3ds Max i d'un Add-on per a Blender. Cada eina viu en un directori independent de primer nivell i manté conjuntament la implementació, les proves i la documentació específica en coreà i català.
 
 ## Eines
 
@@ -46,6 +46,14 @@ Aplica en lot només els Parameter Overrides activats per l'usuari a les referè
 - [Codi MAXScript](LunarVRayMtlBatchOverride/src/Lunar_VRayMtl_Batch_Override.ms)
 - Proves: [Core Smoke](LunarVRayMtlBatchOverride/tests/Lunar_VRayMtl_Batch_Override_smoke.ms) · [SME Regression](LunarVRayMtlBatchOverride/tests/Lunar_VRayMtl_Batch_Override_sme_regression.ms) · [Property Probe](LunarVRayMtlBatchOverride/tests/VRayMtl_property_probe.ms)
 
+### Renew Parent Animation (Blender)
+
+Captura primer el World motion avaluat dels Child seleccionats, el cou com una Action nativa relativa a l'Active Parent i valida l'error World-space dels fotogrames mostrejats.
+
+- Documentació: [한국어](RenewParentAnimation/README.md) · [Català](RenewParentAnimation/README.ca.md)
+- [Add-on de Blender](RenewParentAnimation/renew_parent_animation.py)
+- [Blender Smoke Test](RenewParentAnimation/tests/test_renew_parent_animation.py)
+
 ## Estructura del repositori
 
 Els fitxers compartits romanen a l'arrel. La implementació, les proves i la documentació de cada eina es mantenen dins del directori propi de l'eina.
@@ -60,12 +68,13 @@ LUNARMAXSCRIPT/
 ├── LunarMaterialIDNormalizer/
 ├── LunarTransformAssistant/
 ├── LunarTyFlowPlacement/
-└── LunarVRayMtlBatchOverride/
+├── LunarVRayMtlBatchOverride/
+└── RenewParentAnimation/
 ```
 
 ## Entorn compatible
 
-Les eines estan escrites en MAXScript per a Autodesk 3ds Max 2026. Per a les eines que fan servir V-Ray o tyFlow, consulteu al README corresponent la versió del plugin i l'abast de la validació.
+Les eines MAXScript són per a Autodesk 3ds Max 2026. Per a les eines que fan servir V-Ray o tyFlow, consulteu al README corresponent la versió del plugin i l'abast de la validació. `Renew Parent Animation` és un Add-on Python per a Blender 4.x, comprovat a Blender 4.4.3/4.5.3.
 
 ## Llicència
 

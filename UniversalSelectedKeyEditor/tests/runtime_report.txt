@@ -1,0 +1,46 @@
+Host: #(29000, 70, 0, 29, 2, 0, 20588, 2027, ".2")
+PASS | SELECT collects only the selected key
+PASS | ALL collects selected and unselected keys
+REFUSAL | -- Runtime error: Target already contains a key.
+PASS | Occupied target refused
+PASS | Collision refusal preserves all source keys
+PASS | Move within neighboring interval
+PASS | Move preserves Float bits without text roundtrip
+PASS | Undo restores move and key metadata
+PASS | Redo restores move
+PASS | Crossing move using native key copy
+PASS | Crossing move preserves count and exact value
+PASS | Crossing move Undo restores original key metadata
+PASS | Crossing move Redo
+PASS | Create new key from existing track
+PASS | New key preserves unedited raw Float value
+PASS | Apply typed Float value
+REFUSAL | -- Runtime error: -- Runtime error: Injected failure after real controller mutation | Edit cancelled; source keys restored.
+PASS | Injected failure after actual key insertion is caught
+PASS | Rollback restores key count, times, values, selection and common metadata
+PASS | Cancelled edit leaves prior Undo entries intact
+REFUSAL | -- Runtime error: -- Runtime error: Injected failure after real controller mutation | Edit cancelled; source keys restored.
+PASS | Injected failure after actual crossing move is caught
+PASS | Crossing move rollback restores original keys
+REFUSAL | -- Runtime error: Source value changed outside the editor. Refresh the list.
+PASS | External value change refused
+PASS | Detached original controller cannot be edited through stale row
+PASS | Boolean Controller accepts Boolean tokens as Float 0/1
+PASS | Boolean Controller rejects non-binary value
+PASS | Apply Boolean Controller value
+PASS | Point3 crossing move
+PASS | Point3 exact value preserved
+PASS | Point3 typed parse
+PASS | Integer parser rejects Float coercion
+PASS | Modifier Bend Angle raw Float track resolved and edited
+PASS | Standard light intensity raw Float edited
+PASS | Unkeyed tracks remain excluded (no first-key feature)
+PASS | Traditional On-Off unsupported getKey API safely omitted
+PASS | On-Off scan preserves toggle keys
+PASS | UI opens in SELECT mode
+PASS | UI ALL mode refresh shows more keys
+PASS | UI resolves selected row into write context
+PASS | Time-only move ignores unapplied value text
+PASS | Reordered list uses stable row Tag
+SUMMARY: 39 passed; 0 failed
+Manual visual acceptance / V-Ray / tyFlow / native Integer controller: NOT TESTED
