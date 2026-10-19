@@ -1,0 +1,14 @@
+PASS | Unparented editor survives MAXScript and .NET collection until first use
+HOST list-visible:true cell:dotNetObject:System.Drawing.Rectangle
+PASS | Frame column double-click does not start Value editing
+EVENT System.EventArgs | active:true visible:true focused:true
+PASS | Native double-click starts and retains edit session after mouse-up
+PASS | Double-click input remains visible and focused after message pump
+PASS | Input is parented to the displayed ListView native handle
+PASS | Native character input replaces selected Value text
+AFTER ENTER value:78.25 active:false status:ALL | 2 keys found on 1 selected object(s).
+PASS | Double-click then native ENTER changes source key without time jump
+PASS | Mouse edit commit restores accelerator state from before editing
+PASS | Mouse and keyboard edit Undo restores original value
+PASS | Mouse and keyboard edit Redo restores typed value
+SUMMARY: 10 passed; 0 failed

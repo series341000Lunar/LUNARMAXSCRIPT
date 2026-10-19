@@ -1,5 +1,5 @@
 /*
- Universal Selected Key Editor - v0.5 (existing-key editor)
+ Universal Selected Key Editor - v0.6 (existing-key editor)
  Intended host: Autodesk 3ds Max 2027 / MAXScript
  See README.md and tests/runtime_report.txt for verification scope.
 
@@ -31,6 +31,8 @@
         controllerHandle,
         nodeHandle,
         displayPath,
+        trackName,
+        isLightTrack,
         accessPath,
         subIndices,
         keyTime,
@@ -58,7 +60,30 @@
         if (classOf v) == Float then (formattedPrint v format:".9g") else (v as string)
     )
 
-    fn LKE_AddController c displayPath accessPath nodeHandle allKeys subIndices includeTime:undefined =
+    fn LKE_AxisToken trackName =
+    (
+        -- Match a literal axis token in the leaf track name, never object/ancestor names.
+        local nameText = trimLeft (trimRight trackName)
+        local match = (dotNetClass "System.Text.RegularExpressions.Regex").Match nameText "(?i)^(x|y|z)(?:$|[ _.-])|[ _.-](x|y|z)$"
+        if not match.Success then return undefined
+        local token = match.Groups.Item[1].Value as string
+        if token == "" do token = match.Groups.Item[2].Value as string
+        toLower token
+    )
+
+    fn LKE_CellColor row =
+    (
+        local colors = dotNetClass "System.Drawing.Color"
+        case (LKE_AxisToken row.trackName) of
+        (
+            "x": (colors.FromArgb 255 228 228)
+            "y": (colors.FromArgb 227 245 228)
+            "z": (colors.FromArgb 225 236 255)
+            default: (if row.isLightTrack then (colors.FromArgb 255 248 204) else undefined)
+        )
+    )
+
+    fn LKE_AddController c displayPath accessPath nodeHandle allKeys subIndices includeTime:undefined trackName:"" =
     (
         local handle = try (getHandleByAnim c) catch (undefined)
         if handle == undefined then return false
@@ -72,17 +97,20 @@
         (
             local selected = try (isKeySelected c ki) catch (false)
             local atCurrentTime = includeTime != undefined and (try ((getKeyTime c ki) == includeTime) catch (false))
-            if (allKeys or selected or atCurrentTime) do
+            if (allKeys or (if includeTime == undefined then selected else atCurrentTime)) do
             (
                 local k = try (getKey c ki) catch (undefined)
                 if k != undefined do
                 (
                     local v = LKE_ReadKeyValue k
                     local cls = if v == undefined then "unavailable" else ((classOf v) as string)
+                    local lightTrack = try ((superClassOf (getAnimByHandle nodeHandle).baseObject) == Light) catch (false)
                     append LKE_Rows (LKE_KeyRow \
                         controllerHandle:handle \
                         nodeHandle:nodeHandle \
                         displayPath:displayPath \
+                        trackName:trackName \
+                        isLightTrack:lightTrack \
                         accessPath:(accessPath + ".controller") \
                         subIndices:(for index in subIndices collect index) \
                         keyTime:k.time \
@@ -95,12 +123,12 @@
         true
     )
 
-    fn LKE_Walk anim displayPath accessPath nodeHandle allKeys depth subIndices includeTime:undefined =
+    fn LKE_Walk anim displayPath accessPath nodeHandle allKeys depth subIndices includeTime:undefined trackName:"" =
     (
         if depth > 24 then return false
 
         local c = try (anim.controller) catch (undefined)
-        if c != undefined do LKE_AddController c displayPath accessPath nodeHandle allKeys subIndices includeTime:includeTime
+        if c != undefined do LKE_AddController c displayPath accessPath nodeHandle allKeys subIndices includeTime:includeTime trackName:trackName
 
         local n = try (anim.numSubs) catch (0)
         for i = 1 to n do
@@ -114,7 +142,7 @@
                 LKE_Walk child \
                     (displayPath + " > " + childName) \
                     (accessPath + "[" + (i as string) + "]") \
-                    nodeHandle allKeys (depth + 1) childIndices includeTime:includeTime
+                    nodeHandle allKeys (depth + 1) childIndices includeTime:includeTime trackName:childName
             )
         )
         true
@@ -341,14 +369,14 @@
         true
     )
 
-    rollout LKE_UI "Universal Selected Key Editor  |  0.5" width:900 height:668
+    rollout LKE_UI "Universal Selected Key Editor  |  0.6" width:900 height:668
     (
         local displayedValueText = ""
         local pendingTime = undefined
         local autoRefreshBusy = false
         timer refreshDelay interval:180 active:false
         button bScan "REFRESH / SCAN" pos:[12,10] width:190 height:30
-        radiobuttons rbMode "MODE (selected objects)" labels:#("SELECT - Selected / current frame", "ALL - All keys") default:1 columns:2 pos:[218,3] width:650 height:39
+        radiobuttons rbMode "MODE (selected objects)" labels:#("SELECT - Current frame only", "ALL - All keys") default:1 columns:2 pos:[218,3] width:650 height:39
         label lblStatus "Select an object, then click REFRESH." pos:[12,44] width:870 height:17
 
         dotNetControl lv "System.Windows.Forms.ListView" pos:[12,69] width:876 height:348
@@ -468,6 +496,12 @@
                 item.SubItems.Add fields[2]
                 item.SubItems.Add fields[3]
                 item.SubItems.Add fields[4]
+                local cellColor = LKE_CellColor r
+                if cellColor != undefined do
+                (
+                    item.UseItemStyleForSubItems = false
+                    item.SubItems.Item[1].BackColor = cellColor
+                )
                 lv.Items.Add item
             )
             )
@@ -492,7 +526,7 @@
                 )
             )
             else if rbMode.state == 1 then
-                lblStatus.text += "   Select keys and REFRESH, or choose ALL."
+                lblStatus.text += "   No keys at current frame."
             true
         )
 
@@ -534,7 +568,8 @@
             local refreshed = false
             try
             (
-                local hit = false
+                -- SELECT must refresh on empty frames too, to clear obsolete rows.
+                local hit = (rbMode.state == 1)
                 local seen = #()
                 for node in selection where isValidNode node and not hit do
                     hit = LKE_HasKeyAtTime node t true seen 0
@@ -585,6 +620,7 @@
             lv.HideSelection = false
             lv.MultiSelect = false
             lv.GridLines = true
+            lv.OwnerDraw = true
             lv.HeaderStyle = (dotNetClass "System.Windows.Forms.ColumnHeaderStyle").NonClickable
             lv.Font = dotNetObject "System.Drawing.Font" "Segoe UI" 13.0
             lv.Columns.Add "Frame" 95
@@ -608,6 +644,27 @@
         (
             local r = GetSelectedRow()
             if r != undefined do DisplayRow r
+        )
+
+        on lv DrawColumnHeader sender e do (e.DrawDefault = true)
+
+        on lv DrawSubItem sender e do
+        (
+            -- Preserve the cell tint even when the row is selected automatically.
+            if e.ColumnIndex == 1 and not e.Item.UseItemStyleForSubItems then
+            (
+                local brush = dotNetObject "System.Drawing.SolidBrush" e.SubItem.BackColor
+                try
+                (
+                    e.Graphics.FillRectangle brush e.Bounds
+                    local flags = dotNetClass "System.Windows.Forms.TextFormatFlags"
+                    local textFlags = dotNet.combineEnums flags.Left flags.VerticalCenter flags.SingleLine flags.EndEllipsis flags.NoPrefix
+                    (dotNetClass "System.Windows.Forms.TextRenderer").DrawText e.Graphics (e.SubItem.Text as string) lv.Font e.Bounds (dotNetClass "System.Drawing.Color").Black textFlags
+                )
+                catch (e.DrawDefault = true)
+                brush.Dispose()
+            )
+            else e.DrawDefault = true
         )
 
         on bScan pressed do RefreshList()

@@ -1,0 +1,12 @@
+BEFORE visible:true focused:true active:true accelerators:false value:20.0
+WM_GETDLGCODE: 137
+PASS | Max keyboard accelerators disabled while editing
+AFTER active:false value:91.125 slider:11f status:ALL | 2 keys found on 1 selected object(s).
+PASS | Native ENTER dispatch applies off-time key value without moving slider
+PASS | ENTER ends editing and restores accelerators
+PASS | Native ENTER edit Undo
+PASS | Native ENTER edit Redo
+PASS | Native ENTER rejects invalid input while keeping editor active
+PASS | Native ESC cancels edit, keeps dialog, and restores accelerators
+PASS | Closing during editing restores accelerators
+SUMMARY: 8 passed; 0 failed

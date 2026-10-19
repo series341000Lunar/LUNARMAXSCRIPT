@@ -1,0 +1,111 @@
+Host: #(29000, 70, 0, 29, 2, 0, 20588, 2027, ".2")
+PASS | SELECT collects only the selected key
+PASS | ALL collects selected and unselected keys
+REFUSAL | -- Runtime error: Target already contains a key.
+PASS | Occupied target refused
+PASS | Collision refusal preserves all source keys
+PASS | Move within neighboring interval
+PASS | Move preserves Float bits without text roundtrip
+PASS | Undo restores move and key metadata
+PASS | Redo restores move
+PASS | Crossing move using native key copy
+PASS | Crossing move preserves count and exact value
+PASS | Crossing move Undo restores original key metadata
+PASS | Crossing move Redo
+PASS | Create new key from existing track
+PASS | New key preserves unedited raw Float value
+PASS | Apply typed Float value
+REFUSAL | -- Runtime error: -- Runtime error: Injected failure after real controller mutation | Edit cancelled; source keys restored.
+PASS | Injected failure after actual key insertion is caught
+PASS | Rollback restores key count, times, values, selection and common metadata
+PASS | Cancelled edit leaves prior Undo entries intact
+REFUSAL | -- Runtime error: -- Runtime error: Injected failure after real controller mutation | Edit cancelled; source keys restored.
+PASS | Injected failure after actual crossing move is caught
+PASS | Crossing move rollback restores original keys
+REFUSAL | -- Runtime error: Source value changed outside the editor. Refresh the list.
+PASS | External value change refused
+PASS | Detached original controller cannot be edited through stale row
+PASS | Boolean Controller accepts Boolean tokens as Float 0/1
+PASS | Boolean Controller rejects non-binary value
+PASS | Apply Boolean Controller value
+PASS | Point3 crossing move
+PASS | Point3 exact value preserved
+PASS | Point3 typed parse
+PASS | Integer parser rejects Float coercion
+PASS | Modifier Bend Angle raw Float track resolved and edited
+PASS | Standard light intensity raw Float edited
+PASS | Unkeyed tracks remain excluded (no first-key feature)
+PASS | Traditional On-Off unsupported getKey API safely omitted
+PASS | On-Off scan preserves toggle keys
+PASS | UI opens in SELECT mode
+PASS | UI ALL mode refresh shows more keys
+PASS | UI resolves selected row into write context
+PASS | Time-only move ignores unapplied value text
+PASS | Reordered list uses stable row Tag
+PASS | Time callback registered exactly once
+PASS | Unkeyed frame does not refresh
+PASS | sliderTime assignment triggers delayed auto refresh on keyed frame
+PASS | Auto refresh reads current key value from scene
+PASS | Auto refresh selects the current sliderTime row
+PASS | Auto-selected key populates editor with current frame
+PASS | Multiple current-frame keys prefer previously selected controller
+PASS | Missing preferred track falls back to another current-frame row
+SCROLL PROBE | slider:100f selected:100f status:ALL | 60 keys found on 1 selected object(s).   Auto @ 100 count:60 topIndex:49 bounds:dotNetObject:System.Drawing.Rectangle clientHeight:518
+PASS | Auto refresh selects a keyed frame far down a long list
+PASS | EnsureVisible scrolls far-down selected row into list viewport
+PASS | Auto-selected current-frame row has list item focus
+PASS | SELECT clears rows on an empty frame
+PASS | Empty frame clears selection and editor fields
+PASS | SELECT mode auto-refreshes on unselected current-frame key
+PASS | Unselected current-frame key is displayed and selected in list
+PASS | Automatic list selection leaves scene key unselected
+PASS | SELECT does not include unselected keys at other frames
+PASS | Selected key at another frame is excluded
+PASS | SELECT mode refreshes on selected key
+PASS | New unselected uncached key triggers live probe and refresh
+PASS | SELECT contains only current sliderTime keys
+PASS | New unselected key auto-focuses without changing scene selection
+PASS | Rapid changes debounce to final empty frame and clear list
+PASS | Closing UI unregisters callback
+PASS | Reopening UI registers one callback without duplicates
+PASS | Axis tokens recognize named X Y Z tracks
+PASS | Non-axis names are not RGB-colored
+PASS | XYZ track cell RGB 1
+PASS | Axis tint limited to track cell 1
+PASS | Selected XYZ cell renders its pale background 1
+PASS | XYZ track cell RGB 2
+PASS | Axis tint limited to track cell 2
+PASS | Selected XYZ cell renders its pale background 2
+PASS | XYZ track cell RGB 3
+PASS | Axis tint limited to track cell 3
+PASS | Selected XYZ cell renders its pale background 3
+PASS | Standard light setting cell has pale yellow background
+PASS | Selected standard light cell renders yellow background
+PASS | V-Ray Light intensity/multiplier cell has pale yellow background
+PASS | Selected V-Ray intensity cell renders yellow background
+V-Ray light color test property: #multiplier
+PASS | MK2 defaults to all categories visible
+PASS | ONLY category displays that track across its key frames
+PASS | Category isolation persists across Refresh
+PASS | Context menu includes the clicked leaf category action
+PASS | Right-click menu HIDE callback removes category rows
+PASS | Empty-area context menu exposes hidden categories
+PASS | UNHIDE menu callback restores hidden category
+PASS | Ancestor category filters all descendants
+PASS | Hidden isolated parent can produce an empty list
+PASS | SHOW ALL from empty list resets isolation and hiding
+PASS | Value double-click hit-test opens in-cell editor
+INLINE HOST | parent visible:true editor visible:true edit session:true
+PASS | In-cell edit session starts without moving sliderTime
+PASS | ENTER commits typed value through guarded key editing
+PASS | Off-time source key changes while sliderTime remains unchanged
+PASS | Inline value edit Undo
+PASS | Inline value edit Redo
+PASS | Invalid inline value remains editable without applying
+PASS | Invalid inline value preserves source and Undo history
+PASS | ESC cancels in-cell editor
+PASS | Focus-loss cancellation does not apply typed text
+PASS | Category refresh cancels pending cell edit safely
+PASS | Category operations and inline edits never jump time slider
+SUMMARY: 101 passed; 0 failed
+Manual visual acceptance / V-Ray key editing / tyFlow / native Integer controller: NOT TESTED (V-Ray cell color tested when class available)

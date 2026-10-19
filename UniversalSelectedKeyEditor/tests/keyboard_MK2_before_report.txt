@@ -1,0 +1,4 @@
+BEFORE visible:true focused:true active:true accelerators:true value:20.0
+WM_GETDLGCODE: 137
+AFTER active:true value:20.0 slider:11f status:Edit Value: ENTER applies; ESC or focus change cancels. Time slider stays unchanged.
+RESULT: FAIL

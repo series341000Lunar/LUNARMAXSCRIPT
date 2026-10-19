@@ -35,6 +35,22 @@ fn USKET_Pump milliseconds =
         (dotNetClass "System.Threading.Thread").Sleep 10
     )
 )
+fn USKET_SelectedCellPixelMatches item =
+(
+    item.Selected = true
+    item.Focused = true
+    USKET_UI.lv.Invalidate()
+    USKET_UI.lv.Update()
+    local size = USKET_UI.lv.ClientSize
+    local bmp = dotNetObject "System.Drawing.Bitmap" size.Width size.Height
+    local rect = dotNetObject "System.Drawing.Rectangle" 0 0 size.Width size.Height
+    USKET_UI.lv.DrawToBitmap bmp rect
+    local bounds = item.SubItems.Item[1].Bounds
+    local pixel = bmp.GetPixel (bounds.Right - 3) (bounds.Top + 3)
+    local matches = pixel.ToArgb() == item.SubItems.Item[1].BackColor.ToArgb()
+    bmp.Dispose()
+    matches
+)
 format "Host: %\n" (maxVersion()) to:USKET_Out
 local savedSelection = selection as array
 local savedTime = sliderTime
@@ -215,6 +231,8 @@ try
     USKET_UI.lblStatus.text = "UNSELECTED_KEY_SENTINEL"
     sliderTime = 39f
     USKET_Pump 250
+    USKET_Check (USKET_Rows.count == 0 and USKET_UI.lv.Items.Count == 0) "SELECT clears rows on an empty frame"
+    USKET_Check (USKET_UI.GetSelectedRow() == undefined and USKET_UI.txValue.Text as string == "" and USKET_UI.txFrame.Text as string == "" and USKET_UI.txAccess.Text as string == "") "Empty frame clears selection and editor fields"
     sliderTime = 40f
     USKET_Pump 350
     USKET_Check ((findString USKET_UI.lblStatus.text "Auto @ 40") != undefined) "SELECT mode auto-refreshes on unselected current-frame key"
@@ -224,6 +242,7 @@ try
     selectKey c (getKeyIndex c 40f)
     sliderTime = 39f
     USKET_Pump 250
+    USKET_Check (USKET_Rows.count == 0) "Selected key at another frame is excluded"
     sliderTime = 40f
     USKET_Pump 350
     USKET_Check ((findString USKET_UI.lblStatus.text "Auto @ 40") != undefined) "SELECT mode refreshes on selected key"
@@ -232,12 +251,13 @@ try
     USKET_Pump 350
     freshRows = for r in USKET_Rows where r.controllerHandle == getHandleByAnim c and r.keyTime == 45f collect r
     USKET_Check (freshRows.count == 1 and freshRows[1].sampledValue == 777.0) "New unselected uncached key triggers live probe and refresh"
+    USKET_Check ((for r in USKET_Rows where r.keyTime != sliderTime collect r).count == 0) "SELECT contains only current sliderTime keys"
     USKET_Check ((USKET_UI.GetSelectedRow()).keyTime == 45f and not (isKeySelected c (getKeyIndex c 45f))) "New unselected key auto-focuses without changing scene selection"
     USKET_UI.lblStatus.text = "DEBOUNCE_SENTINEL"
     sliderTime = 40f
     sliderTime = 41f
     USKET_Pump 350
-    USKET_Check (USKET_UI.lblStatus.text == "DEBOUNCE_SENTINEL") "Rapid changes debounce to final unkeyed frame"
+    USKET_Check (USKET_Rows.count == 0 and USKET_UI.lv.Items.Count == 0) "Rapid changes debounce to final empty frame and clear list"
     local registeredFunction = USKET_TimeCallback
     destroyDialog USKET_UI
     callbackCount = (for entry in (showregisteredTimeCallbacks asArray:true) where entry[3] == registeredFunction collect entry).count
@@ -245,6 +265,60 @@ try
     createDialog USKET_UI 900 668 style:#(#style_titlebar, #style_sysmenu)
     callbackCount = (for entry in (showregisteredTimeCallbacks asArray:true) where entry[3] == USKET_TimeCallback collect entry).count
     USKET_Check (callbackCount == 1) "Reopening UI registers one callback without duplicates"
+
+    USKET_Check ((USKET_AxisToken "X Position") == "x" and (USKET_AxisToken "Y Rotation") == "y" and (USKET_AxisToken "Z Scale") == "z") "Axis tokens recognize named X Y Z tracks"
+    USKET_Check ((USKET_AxisToken "XYZ") == undefined and (USKET_AxisToken "Box") == undefined and (USKET_AxisToken "Intensity") == undefined and (USKET_AxisToken "Xylophone") == undefined) "Non-axis names are not RGB-colored"
+    local axisNode
+    undo "USKE Tests - Axis fixture" on
+    (
+        axisNode = Point name:(uniqueName "USKET_Axis_")
+        append fixtures axisNode
+        axisNode.position.controller = Position_XYZ()
+        local xyzControllers = getXYZControllers axisNode.position.controller
+        for ctrl in xyzControllers do (addNewKey ctrl 0f).value = 1.0
+    )
+    with undo off (select axisNode)
+    USKET_UI.rbMode.state = 2
+    USKET_UI.RefreshList()
+    local expectedRGB = #(#(255,228,228), #(227,245,228), #(225,236,255))
+    for axisIndex = 1 to 3 do
+    (
+        local item = USKET_UI.lv.Items.Item[axisIndex-1]
+        local actual = item.SubItems.Item[1].BackColor
+        local expected = expectedRGB[axisIndex]
+        USKET_Check (actual.R == expected[1] and actual.G == expected[2] and actual.B == expected[3]) ("XYZ track cell RGB " + (axisIndex as string))
+        USKET_Check (not item.UseItemStyleForSubItems and item.SubItems.Item[0].BackColor.ToArgb() != actual.ToArgb() and item.SubItems.Item[2].BackColor.ToArgb() != actual.ToArgb()) ("Axis tint limited to track cell " + (axisIndex as string))
+        USKET_Check (USKET_SelectedCellPixelMatches item) ("Selected XYZ cell renders its pale background " + (axisIndex as string))
+    )
+    with undo off (select lightNode)
+    USKET_UI.RefreshList()
+    local lightCell = USKET_UI.lv.Items.Item[0].SubItems.Item[1].BackColor
+    USKET_Check (lightCell.R == 255 and lightCell.G == 248 and lightCell.B == 204) "Standard light setting cell has pale yellow background"
+    USKET_Check (USKET_SelectedCellPixelMatches (USKET_UI.lv.Items.Item[0])) "Selected standard light cell renders yellow background"
+    local vrayNode = undefined
+    undo "USKE Tests - V-Ray light fixture" on
+    (
+        vrayNode = try (VRayLight name:(uniqueName "USKET_VRayLight_")) catch (undefined)
+        if vrayNode != undefined do append fixtures vrayNode
+    )
+    if vrayNode != undefined then
+    (
+        local intensityProp = undefined
+        for prop in #(#multiplier, #intensity) where isProperty vrayNode prop do (intensityProp = prop; exit)
+        if intensityProp == undefined then throw "V-Ray light exists but intensity property was not resolved."
+        undo "USKE Tests - V-Ray intensity key" on
+        (
+            setPropertyController vrayNode intensityProp (bezier_float())
+            (addNewKey (getPropertyController vrayNode intensityProp) 0f).value = 2.5
+        )
+        with undo off (select vrayNode)
+        USKET_UI.RefreshList()
+        local vrayCell = USKET_UI.lv.Items.Item[0].SubItems.Item[1].BackColor
+        USKET_Check (vrayCell.R == 255 and vrayCell.G == 248 and vrayCell.B == 204) "V-Ray Light intensity/multiplier cell has pale yellow background"
+        USKET_Check (USKET_SelectedCellPixelMatches (USKET_UI.lv.Items.Item[0])) "Selected V-Ray intensity cell renders yellow background"
+        format "V-Ray light color test property: %\n" intensityProp to:USKET_Out
+    )
+    else format "SKIP | V-Ray Light class unavailable for color test\n" to:USKET_Out
     destroyDialog USKET_UI
 )
 catch (fatal = getCurrentException() as string; USKET_Check false ("FATAL: " + fatal); format "%\n" (getCurrentExceptionStackTrace()) to:USKET_Out)
@@ -253,5 +327,5 @@ undo "USKE Tests - Cleanup" on (for n in fixtures where isValidNode n do delete 
 with undo off (select (for n in savedSelection where isValidNode n collect n))
 sliderTime = savedTime
 format "SUMMARY: % passed; % failed\n" USKET_Passed USKET_Failed to:USKET_Out
-format "Manual visual acceptance / V-Ray / tyFlow / native Integer controller: NOT TESTED\n" to:USKET_Out
+format "Manual visual acceptance / V-Ray key editing / tyFlow / native Integer controller: NOT TESTED (V-Ray cell color tested when class available)\n" to:USKET_Out
 close USKET_Out

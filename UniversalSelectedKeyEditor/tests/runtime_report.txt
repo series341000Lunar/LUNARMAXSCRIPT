@@ -54,15 +54,35 @@ SCROLL PROBE | slider:100f selected:100f status:ALL | 60 keys found on 1 selecte
 PASS | Auto refresh selects a keyed frame far down a long list
 PASS | EnsureVisible scrolls far-down selected row into list viewport
 PASS | Auto-selected current-frame row has list item focus
+PASS | SELECT clears rows on an empty frame
+PASS | Empty frame clears selection and editor fields
 PASS | SELECT mode auto-refreshes on unselected current-frame key
 PASS | Unselected current-frame key is displayed and selected in list
 PASS | Automatic list selection leaves scene key unselected
 PASS | SELECT does not include unselected keys at other frames
+PASS | Selected key at another frame is excluded
 PASS | SELECT mode refreshes on selected key
 PASS | New unselected uncached key triggers live probe and refresh
+PASS | SELECT contains only current sliderTime keys
 PASS | New unselected key auto-focuses without changing scene selection
-PASS | Rapid changes debounce to final unkeyed frame
+PASS | Rapid changes debounce to final empty frame and clear list
 PASS | Closing UI unregisters callback
 PASS | Reopening UI registers one callback without duplicates
-SUMMARY: 60 passed; 0 failed
-Manual visual acceptance / V-Ray / tyFlow / native Integer controller: NOT TESTED
+PASS | Axis tokens recognize named X Y Z tracks
+PASS | Non-axis names are not RGB-colored
+PASS | XYZ track cell RGB 1
+PASS | Axis tint limited to track cell 1
+PASS | Selected XYZ cell renders its pale background 1
+PASS | XYZ track cell RGB 2
+PASS | Axis tint limited to track cell 2
+PASS | Selected XYZ cell renders its pale background 2
+PASS | XYZ track cell RGB 3
+PASS | Axis tint limited to track cell 3
+PASS | Selected XYZ cell renders its pale background 3
+PASS | Standard light setting cell has pale yellow background
+PASS | Selected standard light cell renders yellow background
+PASS | V-Ray Light intensity/multiplier cell has pale yellow background
+PASS | Selected V-Ray intensity cell renders yellow background
+V-Ray light color test property: #multiplier
+SUMMARY: 79 passed; 0 failed
+Manual visual acceptance / V-Ray key editing / tyFlow / native Integer controller: NOT TESTED (V-Ray cell color tested when class available)
